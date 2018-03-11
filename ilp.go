@@ -1,8 +1,10 @@
 package ilp
 
 import (
+	"errors"
 	"fmt"
 	"log"
+	"math"
 
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize/convex/lp"
@@ -54,16 +56,60 @@ func any(in []bool) bool {
 	return false
 }
 
-func (p MILPproblem) Solve() (z float64, x []float64, err error) {
+func (p MILPproblem) Solve() (float64, []float64, error) {
 
 	if len(p.integerVariables) != len(p.c) {
 		panic("integerVariables vector is not same length as vector c")
 	}
 
+	// solve the initial LP relaxation
+	z, x, err := lp.Simplex(p.c, p.A, p.b, 0, nil)
+
+	// check if the problem has integrality constraints. If not, return the results of the LP relaxation.
 	if !any(p.integerVariables) {
-		z, x, err := lp.Simplex(p.c, p.A, p.b, 0, nil)
 		return z, x, err
 	}
 
-	return 0, []float64{0}, nil
+	// check if initial LP relaxation is feasible considering the integrality constraints
+	if isAllInteger(x...) {
+		fmt.Println("Somehow the initial relaxation was feasible even in light of the integer constraints")
+		return z, x, err
+	}
+
+	// Start the branch and bound procedure for this problem
+
+	return 0, []float64{0}, errors.New("no solution")
+}
+
+// check whether the solution vector is feasible in light of the integrality constraints for each variable
+func satisfiesIntegralityConstraints(constraints []bool, solution []float64) bool {
+	for i := range solution {
+		if constraints[i] {
+			if !isAllInteger(solution[i]) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func isAllInteger(in ...float64) bool {
+	for _, k := range in {
+		if !(k == math.Trunc(k)) {
+			return false
+		}
+	}
+	return true
+
+	// another option:
+	// in == float64(int64(in))
+}
+
+type subProblem struct {
+	// c, A, b represent the same as in the MILPproblem
+	c []float64
+	A *mat.Dense
+	b []float64
+
+	//
 }
