@@ -18,8 +18,8 @@ func TestMILPproblem_Solve_NoInteger(t *testing.T) {
 			-1, 2, 1, 0,
 			3, 1, 0, 1,
 		}),
-		b:                []float64{4, 9},
-		integerVariables: []bool{false, false, false, false},
+		b: []float64{4, 9},
+		integralityConstraints: []bool{false, false, false, false},
 	}
 
 	z, x, err := prob.Solve()
@@ -45,7 +45,7 @@ func TestMILPproblem_Solve_NoInteger(t *testing.T) {
 // 	assert.Equal(t, x, []float64{2, 3, 0, 0})
 // }
 
-func TestIntegralityConstraintsCheck(t *testing.T) {
+func TestFeasibleForIP(t *testing.T) {
 
 	testdata := []struct {
 		constraints []bool
@@ -75,6 +75,6 @@ func TestIntegralityConstraintsCheck(t *testing.T) {
 	}
 
 	for _, testd := range testdata {
-		assert.Equal(t, testd.shouldPass, satisfiesIntegralityConstraints(testd.constraints, testd.solution))
+		assert.Equal(t, testd.shouldPass, feasibleForIP(testd.constraints, testd.solution))
 	}
 }

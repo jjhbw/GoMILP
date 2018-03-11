@@ -1,7 +1,6 @@
 package ilp
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -27,7 +26,7 @@ type MILPproblem struct {
 	h []float64
 
 	// which variables to apply the integrality constraint to. Should have same order as c.
-	integerVariables []bool
+	integralityConstraints []bool
 }
 
 func (p MILPproblem) toInitialSubProblem() subProblem {
@@ -37,30 +36,36 @@ func (p MILPproblem) toInitialSubProblem() subProblem {
 		b: p.b,
 		G: p.G,
 		h: p.h,
+
+		// for the initial subproblem, there are no branch-and-bound-specific inequality constraints.
+		bnbConstraints: []bnbConstraint{},
 	}
 }
 
 type subProblem struct {
-	// c, A, b represent the same as in the MILPproblem
+	// Variables represent the same as in the MILPproblem
 	c []float64
 	A *mat.Dense
 	b []float64
-
-	// additional, optional inequality constraints:  G * x <= h
 	G *mat.Matrix
 	h []float64
+
+	// additional inequality constraints for branch-and-bound
+	bnbConstraints []bnbConstraint
 }
 
-type Solution struct {
-	problem *subProblem
-	x       []float64
-	z       float64
+type bnbConstraint struct {
+	hsharp float64
+	gsharp []float64
 }
 
-func (p subProblem) solve() (Solution, error) {
+func (p subProblem) solve() (solution, error) {
 	var z float64
 	var x []float64
 	var err error
+
+	// TODO: if any additional branch-and-bound constraints are present, add these to the inequality constraints
+	// TODO: note that this can get tricky as we dont want to MODIFY any of the matrices
 
 	// if inequality constraints are presented in general form, convert the problem to standard form.
 	if p.G == nil || p.h == nil {
@@ -71,14 +76,46 @@ func (p subProblem) solve() (Solution, error) {
 	}
 
 	if err != nil {
-		return Solution{}, err
+		return solution{}, err
 	}
 
-	return Solution{
+	return solution{
 		problem: &p,
 		x:       x,
 		z:       z,
 	}, err
+
+}
+
+type solution struct {
+	problem *subProblem
+	x       []float64
+	z       float64
+}
+
+// //TODO: branch the solution into two subproblems that have an added constraint on a particular variable in a particular direction, depending on the rest of the branches.
+// Which variable we branch on is controlled using the variable index specified in the branchOn argument.
+// The integer value on which to branch is inferred from the parent solution.
+// e.g. if this is the first time the problem has branched: create two new problems with new constraints on variable x1, etc.
+func (s solution) branch(branchOn int) []subProblem {
+	//TODO: how to handle 'larger than' constraints?
+}
+
+// inherit everything from the parent problem, but append a new bnb constraint using a variable index and a max value for this variable.
+func (p subProblem) getChild(branchOn int, smallerOrEqualThan float64) subProblem {
+
+	child := p
+	newConstraint := bnbConstraint{
+		hsharp: smallerOrEqualThan,
+		gsharp: make([]float64, len(p.c)),
+	}
+
+	// point to the index of the variable to branch on
+	newConstraint.gsharp[branchOn] = float64(1)
+
+	child.bnbConstraints = append(child.bnbConstraints, newConstraint)
+
+	return child
 
 }
 
@@ -93,30 +130,23 @@ func any(in []bool) bool {
 
 func (p MILPproblem) Solve() (float64, []float64, error) {
 
-	if len(p.integerVariables) != len(p.c) {
+	if len(p.integralityConstraints) != len(p.c) {
 		panic("integerVariables vector is not same length as vector c")
 	}
 
 	// check if the problem has integrality constraints. If not, return the results of the LP relaxation.
-	if !any(p.integerVariables) {
+	if !any(p.integralityConstraints) {
 		return lp.Simplex(p.c, p.A, p.b, 0, nil)
 	}
 
-	// // check if initial LP relaxation is feasible considering the integrality constraints
-	// if satisfiesIntegralityConstraints(p.integerVariables, x) {
-	// 	fmt.Println("Somehow the initial relaxation was feasible even in light of the integrality constraints")
-	// 	return z, x, err
-	// }
-
-	// TODO: Start the branch and bound procedure for this problem
-	var incumbent Solution
+	// Start the branch and bound procedure for this problem
+	var incumbent *solution
 	var problemQueue []subProblem
 
 	// add the initial LP relaxation to the problem queue
 	initialRelaxation := p.toInitialSubProblem()
 	problemQueue = append(problemQueue, initialRelaxation)
 
-mainLoop:
 	for len(problemQueue) > 0 {
 
 		// pop a problem from the queue
@@ -124,16 +154,46 @@ mainLoop:
 		prob, problemQueue = problemQueue[0], problemQueue[1:]
 
 		// solve the subproblem
-		sol, err := prob.solve()
+		candidate, err := prob.solve()
 
-		break mainLoop
+		// check if initial LP relaxation has failed (e.g. because it is not feasible)
+		if err != nil {
+			return 0, nil, err
+		}
+
+		// decide on what to do with the solution:
+		switch {
+		// solution is not feasible
+		case err == lp.ErrInfeasible:
+			// noop
+
+		case incumbent.z >= candidate.z:
+			// noop
+
+		case incumbent.z < candidate.z:
+			if feasibleForIP(p.integralityConstraints, candidate.x) {
+				// candidate is an improvement over the incumbent
+				incumbent = &candidate
+			} else {
+				//candidate is an improvement over the incumbent, but not feasible.
+				//TODO: branch and add the descendants of this candidate to the queue
+
+			}
+
+		}
 	}
 
-	return 0, []float64{0}, errors.New("no solution")
+	//TODO: try to retain the information as to why the incumbent is nil at this point in the algorithm
+	if incumbent == nil {
+		return 0, nil, nil
+	}
+
+	return incumbent.z, incumbent.x, nil
+
 }
 
 // check whether the solution vector is feasible in light of the integrality constraints for each variable
-func satisfiesIntegralityConstraints(constraints []bool, solution []float64) bool {
+func feasibleForIP(constraints []bool, solution []float64) bool {
 	for i := range solution {
 		if constraints[i] {
 			if !isAllInteger(solution[i]) {
@@ -153,12 +213,12 @@ func isAllInteger(in ...float64) bool {
 	return true
 }
 
-// func newSubProblem(c []float64, A *mat.Dense,b []float64) subProblem {
-
-// }
-
 // ExampleSimplex smoke tests the Gonum simplex lp solver and serves as an example.
 func ExampleSimplex() {
+	// standard form:
+	// 	minimize	c^T x
+	// s.t. 		A * x = b
+	// 				x >= 0 .
 
 	// this example solves the following problem:
 	// Minimize Z = -1x1 + -2x2 + 0x3 + 0x4
