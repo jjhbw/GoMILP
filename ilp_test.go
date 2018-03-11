@@ -28,6 +28,23 @@ func TestMILPproblem_Solve_NoInteger(t *testing.T) {
 	assert.Equal(t, x, []float64{2, 3, 0, 0})
 }
 
+// func TestMILPproblem_Solve_InitialRelaxationSatisfiesConstraint(t *testing.T) {
+// 	prob := MILPproblem{
+// 		c: []float64{-1, -2, 0, 0},
+// 		A: mat.NewDense(2, 4, []float64{
+// 			-1, 2, 1, 0,
+// 			3, 1, 0, 1,
+// 		}),
+// 		b:                []float64{4, 9},
+// 		integerVariables: []bool{true, true, true, true},
+// 	}
+
+// 	z, x, err := prob.Solve()
+// 	assert.NoError(t, err)
+// 	assert.Equal(t, float64(-8), z)
+// 	assert.Equal(t, x, []float64{2, 3, 0, 0})
+// }
+
 func TestIntegralityConstraintsCheck(t *testing.T) {
 
 	testdata := []struct {
