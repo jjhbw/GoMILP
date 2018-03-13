@@ -25,7 +25,7 @@ type MILPproblem struct {
 
 	// additional inequality constraints:  G * x <= h
 	// optional, may both be nil
-	G *mat.Matrix
+	G mat.Matrix
 	h []float64
 
 	// which variables to apply the integrality constraint to. Should have same order as c.
@@ -50,7 +50,7 @@ type subProblem struct {
 	c []float64
 	A *mat.Dense
 	b []float64
-	G *mat.Matrix
+	G mat.Matrix
 	h []float64
 
 	// additional inequality constraints for branch-and-bound
@@ -66,21 +66,60 @@ type bnbConstraint struct {
 	gsharp []float64
 }
 
-func (p subProblem) solve() (solution, error) {
-	var z float64
-	var x []float64
-	var err error
+func (p subProblem) getInequalities() (*mat.Dense, []float64) {
 
-	// TODO: if any additional branch-and-bound constraints are present, add these to the inequality constraints
-	// TODO: note that this can get tricky as we dont want to MODIFY any of the matrices
+	if len(p.bnbConstraints) > 0 {
+		// get the 'right sides' original problem inequality constraints
+		h := p.h
 
-	// if inequality constraints are presented in general form, convert the problem to standard form.
-	if p.G == nil || p.h == nil {
-		z, x, err = lp.Simplex(p.c, p.A, p.b, 0, nil)
-	} else {
-		c, a, b := lp.Convert(p.c, *p.G, p.h, p.A, p.b)
-		z, x, err = lp.Simplex(c, a, b, 0, nil)
+		// build a matrix of all constraints originating from the branch-and-bound procedure
+		var bnbGvects []float64
+		for _, constr := range p.bnbConstraints {
+			bnbGvects = append(bnbGvects, constr.gsharp...)
+
+			// add the hsharp value to the h vector
+			h = append(h, constr.hsharp)
+		}
+		bnbG := mat.NewDense(len(p.bnbConstraints), len(p.c), bnbGvects)
+
+		// Use stack to combine the branch-and-bound constraint matrix with the original problem inequality constraint matrix into G that will be used in the simplex
+		// we do all this in a new matrix
+		var Gnew *mat.Dense
+
+		// Note that this will place the bnb constraints in the higher indexed rows.
+		Gnew.Stack(p.G, bnbG)
+
+		return Gnew, h
 	}
+
+	// if no constraints need to be added, return the original constraints.
+
+	// copy the matrix, simultaneously casting to a concrete type (TODO: inefficiency)
+	Gnew := mat.DenseCopyOf(p.G)
+	return Gnew, p.h
+
+}
+
+func (p subProblem) solve() (solution, error) {
+
+	// if inequality constraints are presented (general form), convert the problem to standard form.
+	var c []float64
+	var A *mat.Dense
+	var b []float64
+
+	// get the inequality constraints
+	G, h := p.getInequalities()
+
+	if G == nil {
+		c, A, b = lp.Convert(p.c, G, h, p.A, p.b)
+	} else {
+		c = p.c
+		A = p.A
+		b = p.b
+	}
+
+	// apply the simplex algorithm
+	z, x, err := lp.Simplex(c, A, b, 0, nil)
 
 	if err != nil {
 		return solution{}, err
