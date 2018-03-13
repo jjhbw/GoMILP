@@ -11,6 +11,9 @@ import (
 
 // TODO: write the branch and bound procedure
 // TODO: Solver should output abstraction of the solution with some diagnostics
+// TODO: try to formulate more advanced constraints, like sets of values instead of just integrality.
+// Note that having integer sets as constraints is basically the same as having an integrality constraint + a <= and >= bound.
+// Branching on this type of constraint can be optimized in a neat way (i.e. x>=0, x<=1, x<=0 ~-> x = 0)
 
 type MILPproblem struct {
 	// 	minimize c^T * x
@@ -55,6 +58,10 @@ type subProblem struct {
 }
 
 type bnbConstraint struct {
+	// the index of the variable that we branched on
+	branchedVariable int
+
+	// additions to make to the subProblem before solving
 	hsharp float64
 	gsharp []float64
 }
@@ -93,25 +100,51 @@ type solution struct {
 	z       float64
 }
 
-// //TODO: branch the solution into two subproblems that have an added constraint on a particular variable in a particular direction, depending on the rest of the branches.
+// branch the solution into two subproblems that have an added constraint on a particular variable in a particular direction.
 // Which variable we branch on is controlled using the variable index specified in the branchOn argument.
 // The integer value on which to branch is inferred from the parent solution.
 // e.g. if this is the first time the problem has branched: create two new problems with new constraints on variable x1, etc.
-func (s solution) branch(branchOn int) []subProblem {
-	//TODO: how to handle 'larger than' constraints?
+func (s solution) branch() (p1, p2 subProblem) {
+
+	// get the variable to branch on by looking at which variables we branched on previously
+	// if there are no branches yet, so we start at the first variable (with index = 0)
+	branchOn := 0
+	if len(s.problem.bnbConstraints) > 0 {
+		// Determine which variable to branch on next based on the last variable we branched on and the number of variables.
+		lastConstraint := s.problem.bnbConstraints[len(s.problem.bnbConstraints)-1]
+		lastBranchedVariable := lastConstraint.branchedVariable
+		if lastBranchedVariable < len(s.problem.c)-1 {
+			branchOn = lastBranchedVariable + 1
+		}
+
+		// if we already branched on all variables, we start back at the first.
+	}
+
+	// Formulate the right constraints for this variable, based on its coefficient estimated by the current solution.
+	currentCoeff := s.x[branchOn]
+
+	// build the subproblem that will explore the 'smaller than' branch
+	p1 = s.problem.getChild(branchOn, 1, math.Floor(currentCoeff))
+
+	// formulate 'larger than' constraints of the branchpoint as 'smaller than' by inverting the sign
+	p2 = s.problem.getChild(branchOn, -1, -math.Ceil(currentCoeff))
+
+	return
 }
 
 // inherit everything from the parent problem, but append a new bnb constraint using a variable index and a max value for this variable.
-func (p subProblem) getChild(branchOn int, smallerOrEqualThan float64) subProblem {
+// Note that we also provide a multiplication factor for the to allow for sign changes
+func (p subProblem) getChild(branchOn int, factor float64, smallerOrEqualThan float64) subProblem {
 
 	child := p
 	newConstraint := bnbConstraint{
-		hsharp: smallerOrEqualThan,
-		gsharp: make([]float64, len(p.c)),
+		branchedVariable: branchOn,
+		hsharp:           smallerOrEqualThan,
+		gsharp:           make([]float64, len(p.c)),
 	}
 
 	// point to the index of the variable to branch on
-	newConstraint.gsharp[branchOn] = float64(1)
+	newConstraint.gsharp[branchOn] = float64(factor)
 
 	child.bnbConstraints = append(child.bnbConstraints, newConstraint)
 
@@ -131,7 +164,7 @@ func any(in []bool) bool {
 func (p MILPproblem) Solve() (float64, []float64, error) {
 
 	if len(p.integralityConstraints) != len(p.c) {
-		panic("integerVariables vector is not same length as vector c")
+		panic("integrality constraints vector is not same length as vector c")
 	}
 
 	// check if the problem has integrality constraints. If not, return the results of the LP relaxation.
