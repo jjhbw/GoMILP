@@ -25,7 +25,7 @@ type MILPproblem struct {
 
 	// additional inequality constraints:  G * x <= h
 	// optional, may both be nil
-	G mat.Matrix
+	G *mat.Dense
 	h []float64
 
 	// which variables to apply the integrality constraint to. Should have same order as c.
@@ -50,7 +50,7 @@ type subProblem struct {
 	c []float64
 	A *mat.Dense
 	b []float64
-	G mat.Matrix
+	G *mat.Dense
 	h []float64
 
 	// additional inequality constraints for branch-and-bound
@@ -82,27 +82,43 @@ func (p subProblem) getInequalities() (*mat.Dense, []float64) {
 		}
 		bnbG := mat.NewDense(len(p.bnbConstraints), len(p.c), bnbGvects)
 
-		// Use stack to combine the branch-and-bound constraint matrix with the original problem inequality constraint matrix into G that will be used in the simplex
-		// we do all this in a new matrix
-		var Gnew *mat.Dense
+		// if the original problem did not contain inequality constraints, we return the bnb constraint matrix.
+		if p.G == nil {
+			return bnbG, h
+		}
 
+		// if for some magic reason the inequality constraint matrix is of zero-dimension, we can also return just the bnb constraints.
+		if p.G.IsZero() {
+			return bnbG, h
+		}
+
+		// Use stack to combine the branch-and-bound constraint matrix with the original problem inequality constraint matrix into G that will be used in the simplex
+		// into a new matrix, which needs to be initialized in the exact shape we expect.
 		// Note that this will place the bnb constraints in the higher indexed rows.
+		origRows, _ := p.G.Dims()
+		bnbRows, _ := bnbG.Dims()
+		expectedRows := origRows + bnbRows
+
+		// allocate a zero-valued new matrix of the given dimensions
+		Gnew := mat.NewDense(expectedRows, len(p.c), nil)
+
+		// stack the two matrices into this new matrix
 		Gnew.Stack(p.G, bnbG)
 
 		return Gnew, h
 	}
 
 	// if no constraints need to be added, return the original constraints.
-
-	// copy the matrix, simultaneously casting to a concrete type (TODO: inefficiency)
-	Gnew := mat.DenseCopyOf(p.G)
-	return Gnew, p.h
+	if p.G != nil {
+		// copy the matrix, simultaneously casting to a concrete type
+		return mat.DenseCopyOf(p.G), p.h
+	}
+	return nil, p.h
 
 }
 
 func (p subProblem) solve() (solution, error) {
 
-	// if inequality constraints are presented (general form), convert the problem to standard form.
 	var c []float64
 	var A *mat.Dense
 	var b []float64
@@ -110,6 +126,7 @@ func (p subProblem) solve() (solution, error) {
 	// get the inequality constraints
 	G, h := p.getInequalities()
 
+	// if inequality constraints are presented (general form), convert the problem to standard form.
 	if G == nil {
 		c, A, b = lp.Convert(p.c, G, h, p.A, p.b)
 	} else {

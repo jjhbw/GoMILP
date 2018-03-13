@@ -12,7 +12,7 @@ func TestExampleSimplex(t *testing.T) {
 	ExampleSimplex()
 }
 
-func TestMILPproblem_Solve_NoInteger(t *testing.T) {
+func TestMILPproblem_Solve_Smoke_NoInteger(t *testing.T) {
 	prob := MILPproblem{
 		c: []float64{-1, -2, 0, 0},
 		A: mat.NewDense(2, 4, []float64{
@@ -199,6 +199,113 @@ func Test_solution_branch(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got2, tt.want2) {
 				t.Errorf("solution.branch() got2 = %v, want %v", got2, tt.want2)
+			}
+		})
+	}
+}
+
+func Test_subProblem_getInequalities(t *testing.T) {
+	type fields struct {
+		c              []float64
+		A              *mat.Dense
+		b              []float64
+		G              *mat.Dense
+		h              []float64
+		bnbConstraints []bnbConstraint
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   *mat.Dense
+		want1  []float64
+	}{
+		{
+			name: "no bnb or original constraints",
+			fields: fields{
+				c: []float64{-1, -2, 0, 0},
+				A: mat.NewDense(2, 4, []float64{
+					-1, 2, 1, 0,
+					3, 1, 0, 1,
+				}),
+				b: []float64{4, 9},
+			},
+			want:  nil,
+			want1: nil,
+		},
+		{
+			name: "only original constraints",
+			fields: fields{
+				c: []float64{-1, -2, 0, 0},
+				A: mat.NewDense(2, 4, []float64{
+					-1, 2, 1, 0,
+					3, 1, 0, 1,
+				}),
+				b: []float64{4, 9},
+				h: []float64{1},
+				G: mat.NewDense(1, 4, []float64{1, 0, 0, 0}),
+			},
+			want:  mat.NewDense(1, 4, []float64{1, 0, 0, 0}),
+			want1: []float64{1},
+		},
+		{
+			name: "One bnb constraint, no original inequality constraints",
+			fields: fields{
+				c: []float64{-1, -2, 0, 0},
+				A: mat.NewDense(2, 4, []float64{
+					-1, 2, 1, 0,
+					3, 1, 0, 1,
+				}),
+				b: []float64{4, 9},
+				bnbConstraints: []bnbConstraint{
+					{
+						branchedVariable: 0,
+						hsharp:           1,
+						gsharp:           []float64{1, 0, 0, 0},
+					},
+				},
+			},
+			want:  mat.NewDense(1, 4, []float64{1, 0, 0, 0}),
+			want1: []float64{1},
+		},
+		{
+			name: "One bnb constraint, one original inequality constraint",
+			fields: fields{
+				c: []float64{-1, -2, 0, 0},
+				A: mat.NewDense(2, 4, []float64{
+					-1, 2, 1, 0,
+					3, 1, 0, 1,
+				}),
+				b: []float64{4, 9},
+				h: []float64{2},
+				G: mat.NewDense(1, 4, []float64{0, 0, 0, 1}),
+				bnbConstraints: []bnbConstraint{
+					{
+						branchedVariable: 0,
+						hsharp:           1,
+						gsharp:           []float64{1, 0, 0, 0},
+					},
+				},
+			},
+			want:  mat.NewDense(2, 4, []float64{0, 0, 0, 1, 1, 0, 0, 0}),
+			want1: []float64{2, 1},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := subProblem{
+				c:              tt.fields.c,
+				A:              tt.fields.A,
+				b:              tt.fields.b,
+				G:              tt.fields.G,
+				h:              tt.fields.h,
+				bnbConstraints: tt.fields.bnbConstraints,
+			}
+			got, got1 := p.getInequalities()
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("subProblem.getInequalities() got = %v, want %v", got, tt.want)
+			}
+			if !reflect.DeepEqual(got1, tt.want1) {
+				t.Errorf("subProblem.getInequalities() got1 = %v, want %v", got1, tt.want1)
 			}
 		})
 	}
