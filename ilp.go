@@ -10,11 +10,12 @@ import (
 	"gonum.org/v1/gonum/optimize/convex/lp"
 )
 
-// TODO: write the branch and bound procedure
-// TODO: Solver should output abstraction of the solution with some diagnostics
+// TODO: fix the 'unbounded problem' issue originating from usage of the lp.Convert() function.
+// TODO: allow for MAXimization problems, perhaps with a nice method-chaining API.
 // TODO: try to formulate more advanced constraints, like sets of values instead of just integrality.
 // Note that having integer sets as constraints is basically the same as having an integrality constraint + a <= and >= bound.
 // Branching on this type of constraint can be optimized in a neat way (i.e. x>=0, x<=1, x<=0 ~-> x = 0)
+// TODO: visualising the enumeration tree?
 
 type MILPproblem struct {
 	// 	minimize c^T * x
@@ -115,7 +116,7 @@ func (p subProblem) getInequalities() (*mat.Dense, []float64) {
 		// copy the matrix, simultaneously casting to a concrete type
 		return mat.DenseCopyOf(p.G), p.h
 	}
-	return nil, p.h
+	return nil, nil
 
 }
 
@@ -130,11 +131,28 @@ func (p subProblem) solve() (solution, error) {
 
 	// if inequality constraints are presented (general form), convert the problem to standard form.
 	if G != nil {
+		fmt.Println("Problem with inequalities:")
+		fmt.Println("c: ", p.c)
+		fmt.Println("G:")
+		fmt.Println(mat.Formatted(G))
+		fmt.Println("h:", h)
+		fmt.Println("A: ")
+		fmt.Println(mat.Formatted(p.A))
+		fmt.Println("b:", p.b)
+
+		fmt.Println("converted to:")
 		c, A, b = lp.Convert(p.c, G, h, p.A, p.b)
+		fmt.Println(c)
+		fmt.Println(mat.Formatted(A))
+		fmt.Println(b)
+
 	} else {
 		c = p.c
 		A = p.A
 		b = p.b
+		fmt.Println(c)
+		fmt.Println(mat.Formatted(A))
+		fmt.Println(b)
 	}
 
 	// apply the simplex algorithm
@@ -154,6 +172,7 @@ type solution struct {
 	z       float64
 }
 
+//TODO: This branching heuristic (selects a variable to branch on) is extremely dumb. Improve!
 // branch the solution into two subproblems that have an added constraint on a particular variable in a particular direction.
 // Which variable we branch on is controlled using the variable index specified in the branchOn argument.
 // The integer value on which to branch is inferred from the parent solution.
@@ -196,10 +215,10 @@ func (s solution) branch(integralityConstraints []bool) (p1, p2 subProblem) {
 	// Formulate the right constraints for this variable, based on its coefficient estimated by the current solution.
 	currentCoeff := s.x[branchOn]
 
-	// build the subproblem that will explore the 'smaller than' branch
+	// build the subproblem that will explore the 'smaller or equal than' branch
 	p1 = s.problem.getChild(branchOn, 1, math.Floor(currentCoeff))
 
-	// formulate 'larger than' constraints of the branchpoint as 'smaller than' by inverting the sign
+	// formulate 'larger than' constraints of the branchpoint as 'smaller or equal than' by inverting the sign
 	p2 = s.problem.getChild(branchOn, -1, -math.Ceil(currentCoeff))
 
 	return
@@ -265,6 +284,14 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 		}, nil
 	}
 
+	// moreover, if the solution to the initial relaxation already satisfies all integrality constraints, we can present it as-is.
+	if feasibleForIP(p.integralityConstraints, initialRelaxationSolution.x) {
+		return MILPsolution{
+			solution:    initialRelaxationSolution,
+			decisionLog: nil,
+		}, nil
+	}
+
 	// Start the branch and bound procedure for this problem
 	var problemQueue []subProblem
 	var steps []bnbStep
@@ -277,10 +304,8 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 	p1, p2 := incumbent.branch(p.integralityConstraints)
 	problemQueue = append(problemQueue, p1, p2)
 
-	fmt.Println(p)
-	fmt.Println(initialRelaxation)
-	fmt.Println(p1)
-	fmt.Println(p2)
+	// fmt.Println(p1)
+	// fmt.Println(p2)
 
 	for len(problemQueue) > 0 {
 
@@ -311,11 +336,12 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 				panic(err)
 			}
 
-		case incumbent.z >= candidate.z:
+		// Note that the objective is a minimization.
+		case incumbent.z <= candidate.z:
 			// noop
 			step.decision = WORSE_THAN_INCUMBENT
 
-		case incumbent.z < candidate.z:
+		case incumbent.z > candidate.z:
 			if feasibleForIP(p.integralityConstraints, candidate.x) {
 				// candidate is an improvement over the incumbent
 				incumbent = &candidate

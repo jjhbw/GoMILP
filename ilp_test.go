@@ -226,7 +226,7 @@ func TestMILPproblem_Solve(t *testing.T) {
 			},
 		},
 		{
-			name: "One integrality constraint, no inequalities",
+			name: "Intial relaxation satisfies integrality",
 			fields: fields{
 				c: []float64{-1, -2, 0, 0},
 				A: mat.NewDense(2, 4, []float64{
@@ -236,17 +236,40 @@ func TestMILPproblem_Solve(t *testing.T) {
 				b: []float64{4, 9},
 				G: nil,
 				h: nil,
+				integralityConstraints: []bool{false, false, false, false},
+			},
+			want: MILPsolution{
+				solution: solution{
+					x: []float64{2, 3, 0, 0},
+					z: float64(-8),
+				},
+			},
+		},
+		{
+			name: "One integrality constraint, no initial constraints.",
+			fields: fields{
+				c: []float64{-1, -2, 0, 0},
+				A: mat.NewDense(2, 4, []float64{
+					-1, 2.6, 1, 0,
+					3, 1.1, 0, 1,
+				}),
+				b: []float64{4, 9},
+				G: nil,
+				h: nil,
 				integralityConstraints: []bool{false, true, false, false},
 			},
 			want: MILPsolution{
 				solution: solution{
-				// x: []float64{2, 3, 0, 0},
-				// z: float64(-8),
+					x: []float64{2, 3, 0, 0},
+					z: float64(-8),
 				},
 			},
 		},
 	}
 	for _, tt := range tests {
+
+		fmt.Println(tt.name)
+
 		t.Run(tt.name, func(t *testing.T) {
 			p := MILPproblem{
 				c: tt.fields.c,
