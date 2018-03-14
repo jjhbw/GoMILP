@@ -2,8 +2,12 @@ package ilp
 
 import (
 	"fmt"
+	"math/rand"
 	"reflect"
 	"testing"
+	"time"
+
+	"gonum.org/v1/gonum/optimize/convex/lp"
 
 	"github.com/stretchr/testify/assert"
 	"gonum.org/v1/gonum/mat"
@@ -475,20 +479,46 @@ func TestMILPproblem_Solve(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "One integrality constraint and no initial constraints.",
+			name: "1: One integrality constraint and no initial inequality constraints.",
 			fields: fields{
-				c: []float64{-1, -2, 0, 0},
-				A: mat.NewDense(2, 4, []float64{
-					-1, 2.6, 1, 0,
-					3, 1.1, 0, 1,
+				c: []float64{-1, -2, 0},
+				A: mat.NewDense(2, 3, []float64{
+					-1, 2.6, 1.2,
+					3, 1.1, 1.6,
 				}),
 				b: []float64{4, 9},
 				G: nil,
 				h: nil,
-				integralityConstraints: []bool{false, true, false, false},
+				integralityConstraints: []bool{false, false, true},
 			},
-			// want:    MILPsolution{},
-			// wantErr: true,
+			want: MILPsolution{
+				solution: solution{
+					x: []float64{2.134831460674157, 2.3595505617977524, 0},
+					z: -6.853932584269662,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "2: One integrality constraint and no initial inequality constraints.",
+			fields: fields{
+				c: []float64{-1, -2},
+				A: mat.NewDense(2, 2, []float64{
+					-1, 2.6,
+					3, 1.1,
+				}),
+				b: []float64{4, 9},
+				G: nil,
+				h: nil,
+				integralityConstraints: []bool{true, false},
+			},
+			// want: MILPsolution{
+			// 	solution: solution{
+			// 		x: []float64{2.134831460674157, 2.3595505617977524, 0},
+			// 		z: -6.853932584269662,
+			// 	},
+			// },
+			// wantErr: false,
 		},
 	}
 	for _, tt := range tests {
@@ -513,4 +543,123 @@ func TestMILPproblem_Solve(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRandomized(t *testing.T) {
+	rnd := rand.New(rand.NewSource(1))
+
+	// some small problems
+	testRandom(t, 100, 0, 10, rnd)
+
+	// larger problems
+	testRandom(t, 100, 0, 100, rnd)
+}
+
+func getRandomMILP(pZero float64, m, n int, rnd *rand.Rand) *MILPproblem {
+
+	if m == 0 || n == 0 {
+		panic("m==n not allowed")
+	}
+	randValue := func() float64 {
+		//var pZero float64
+		v := rnd.Float64()
+		if v < pZero {
+			return 0
+		}
+		return rnd.NormFloat64()
+	}
+	a := mat.NewDense(m, n, nil)
+	for i := 0; i < m; i++ {
+		for j := 0; j < n; j++ {
+			a.Set(i, j, randValue())
+		}
+	}
+
+	b := make([]float64, m)
+	for i := range b {
+		b[i] = randValue()
+	}
+
+	c := make([]float64, n)
+	for i := range c {
+		c[i] = randValue()
+	}
+
+	g := mat.NewDense(m, n, nil)
+	for i := 0; i < m; i++ {
+		for j := 0; j < n; j++ {
+			g.Set(i, j, randValue())
+		}
+	}
+
+	h := make([]float64, m)
+	for i := range h {
+		h[i] = randValue()
+	}
+
+	boolgenerator := NewBoolGen()
+
+	var integralityConstraints []bool
+	for i := 0; i < len(c); i++ {
+		integralityConstraints = append(integralityConstraints, boolgenerator.Bool())
+	}
+
+	return &MILPproblem{
+		c: c,
+		A: a,
+		b: b,
+		G: g,
+		h: h,
+		integralityConstraints: integralityConstraints,
+	}
+}
+
+func testRandom(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.Rand) {
+	// Try a bunch of random LPs
+	for i := 0; i < nTest; i++ {
+		n := rnd.Intn(maxN) + 2 // n must be at least two.
+		m := rnd.Intn(n-1) + 1  // m must be between 1 and n
+		prob := getRandomMILP(pZero, m, n, rnd)
+
+		solution, err := prob.Solve()
+		// if err != nil {
+		// 	t.Error(err)
+		// }
+		fmt.Println(solution.solution.x, solution.solution.z, err)
+	}
+}
+
+// random boolean generator
+type boolgen struct {
+	src       rand.Source
+	cache     int64
+	remaining int
+}
+
+func NewBoolGen() *boolgen {
+	return &boolgen{src: rand.NewSource(time.Now().UnixNano())}
+}
+
+func (b *boolgen) Bool() bool {
+	if b.remaining == 0 {
+		b.cache, b.remaining = b.src.Int63(), 63
+	}
+
+	result := b.cache&0x01 == 1
+	b.cache >>= 1
+	b.remaining--
+
+	return result
+}
+
+// TODO: weird BLAS-level bug. Is this a square matrix thing?
+func Test_ThisBreaksGonumSimplex(t *testing.T) {
+	c := []float64{-1, -2}
+	A := mat.NewDense(2, 2, []float64{
+		-1, 2.6,
+		3, 1.1,
+	})
+	b := []float64{4, 9}
+
+	lp.Simplex(c, A, b, 0, nil)
 }
