@@ -190,109 +190,6 @@ func Test_subProblem_getInequalities(t *testing.T) {
 	}
 }
 
-func TestMILPproblem_Solve(t *testing.T) {
-	type fields struct {
-		c                      []float64
-		A                      *mat.Dense
-		b                      []float64
-		G                      *mat.Dense
-		h                      []float64
-		integralityConstraints []bool
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		want    MILPsolution
-		wantErr bool
-	}{
-		{
-			name: "No integrality constraints, no inequalities",
-			fields: fields{
-				c: []float64{-1, -2, 0, 0},
-				A: mat.NewDense(2, 4, []float64{
-					-1, 2, 1, 0,
-					3, 1, 0, 1,
-				}),
-				b: []float64{4, 9},
-				G: nil,
-				h: nil,
-				integralityConstraints: []bool{false, false, false, false},
-			},
-			want: MILPsolution{
-				solution: solution{
-					x: []float64{2, 3, 0, 0},
-					z: float64(-8),
-				},
-			},
-		},
-		{
-			name: "Intial relaxation satisfies integrality",
-			fields: fields{
-				c: []float64{-1, -2, 0, 0},
-				A: mat.NewDense(2, 4, []float64{
-					-1, 2, 1, 0,
-					3, 1, 0, 1,
-				}),
-				b: []float64{4, 9},
-				G: nil,
-				h: nil,
-				integralityConstraints: []bool{false, false, false, false},
-			},
-			want: MILPsolution{
-				solution: solution{
-					x: []float64{2, 3, 0, 0},
-					z: float64(-8),
-				},
-			},
-		},
-		{
-			name: "One integrality constraint, no initial constraints.",
-			fields: fields{
-				c: []float64{-1, -2, 0, 0},
-				A: mat.NewDense(2, 4, []float64{
-					-1, 2.6, 1, 0,
-					3, 1.1, 0, 1,
-				}),
-				b: []float64{4, 9},
-				G: nil,
-				h: nil,
-				integralityConstraints: []bool{false, true, false, false},
-			},
-			want: MILPsolution{
-				solution: solution{
-					x: []float64{2, 3, 0, 0},
-					z: float64(-8),
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-
-		fmt.Println(tt.name)
-
-		t.Run(tt.name, func(t *testing.T) {
-			p := MILPproblem{
-				c: tt.fields.c,
-				A: tt.fields.A,
-				b: tt.fields.b,
-				G: tt.fields.G,
-				h: tt.fields.h,
-				integralityConstraints: tt.fields.integralityConstraints,
-			}
-			got, err := p.Solve()
-			if (err != nil) != tt.wantErr {
-				t.Log(got.decisionLog)
-				t.Errorf("MILPproblem.Solve() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !(reflect.DeepEqual(tt.want.solution.x, got.solution.x) && tt.want.solution.z == got.solution.z) {
-				t.Log(got.decisionLog)
-				t.Errorf("MILPproblem.Solve() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func Test_solution_branch(t *testing.T) {
 	type fields struct {
 		problem *subProblem
@@ -438,6 +335,169 @@ func Test_solution_branch(t *testing.T) {
 			}
 			if !reflect.DeepEqual(gotP2, tt.wantP2) {
 				t.Errorf("solution.branch() gotP2 = %v, want %v", gotP2, tt.wantP2)
+			}
+		})
+	}
+}
+
+func Test_addSlackVariables(t *testing.T) {
+	type args struct {
+		c []float64
+		A *mat.Dense
+		b []float64
+		G *mat.Dense
+		h []float64
+	}
+	tests := []struct {
+		name     string
+		args     args
+		wantCNew []float64
+		wantANew *mat.Dense
+		wantBNew []float64
+	}{
+		{
+			name: "simple case",
+			args: args{
+				c: []float64{-1, -2, 0, 0},
+				A: mat.NewDense(2, 4, []float64{
+					-1, 2, 1, 0,
+					3, 1, 0, 1,
+				}),
+				b: []float64{4, 9},
+				h: []float64{2, 5, 8},
+				G: mat.NewDense(3, 4, []float64{
+					0, 0, 0, 1,
+					0, 0, 1, 0,
+					0, 1, 0, 0}),
+			},
+			wantCNew: []float64{-1, -2, 0, 0, 0, 0, 0},
+			wantANew: mat.NewDense(5, 7, []float64{
+				-1, 2, 1, 0, 0, 0, 0,
+				3, 1, 0, 1, 0, 0, 0,
+				0, 0, 0, 1, 1, 0, 0,
+				0, 0, 1, 0, 0, 1, 0,
+				0, 1, 0, 0, 0, 0, 1}),
+			wantBNew: []float64{4, 9, 2, 5, 8},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotCNew, gotANew, gotBNew := convertToEqualities(tt.args.c, tt.args.A, tt.args.b, tt.args.G, tt.args.h)
+			fmt.Println("Cnew:")
+			fmt.Println(gotCNew)
+			fmt.Println("ANew:")
+			fmt.Println(mat.Formatted(gotANew))
+			fmt.Println("BNew:")
+			fmt.Println(gotBNew)
+
+			if !reflect.DeepEqual(gotCNew, tt.wantCNew) {
+				t.Errorf("addSlackVariables() gotCNew = %v, want %v", gotCNew, tt.wantCNew)
+			}
+			if !reflect.DeepEqual(gotANew, tt.wantANew) {
+				t.Errorf("addSlackVariables() gotANew = %v, want %v", gotANew, tt.wantANew)
+			}
+			if !reflect.DeepEqual(gotBNew, tt.wantBNew) {
+				t.Errorf("addSlackVariables() gotBNew = %v, want %v", gotBNew, tt.wantBNew)
+			}
+		})
+	}
+}
+
+func TestMILPproblem_Solve(t *testing.T) {
+	type fields struct {
+		c                      []float64
+		A                      *mat.Dense
+		b                      []float64
+		G                      *mat.Dense
+		h                      []float64
+		integralityConstraints []bool
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		want    MILPsolution
+		wantErr bool
+	}{
+		{
+			name: "No integrality constraints, no inequalities",
+			fields: fields{
+				c: []float64{-1, -2, 0, 0},
+				A: mat.NewDense(2, 4, []float64{
+					-1, 2, 1, 0,
+					3, 1, 0, 1,
+				}),
+				b: []float64{4, 9},
+				G: nil,
+				h: nil,
+				integralityConstraints: []bool{false, false, false, false},
+			},
+			want: MILPsolution{
+				solution: solution{
+					x: []float64{2, 3, 0, 0},
+					z: float64(-8),
+				},
+			},
+		},
+		{
+			name: "Intial relaxation satisfies integrality",
+			fields: fields{
+				c: []float64{-1, -2, 0, 0},
+				A: mat.NewDense(2, 4, []float64{
+					-1, 2, 1, 0,
+					3, 1, 0, 1,
+				}),
+				b: []float64{4, 9},
+				G: nil,
+				h: nil,
+				integralityConstraints: []bool{false, false, false, false},
+			},
+			want: MILPsolution{
+				solution: solution{
+					x: []float64{2, 3, 0, 0},
+					z: float64(-8),
+				},
+			},
+		},
+		{
+			name: "One integrality constraint, no initial constraints.",
+			fields: fields{
+				c: []float64{-1, -2, 0, 0},
+				A: mat.NewDense(2, 4, []float64{
+					-1, 2.6, 1, 0,
+					3, 1.1, 0, 1,
+				}),
+				b: []float64{4, 9},
+				G: nil,
+				h: nil,
+				integralityConstraints: []bool{false, true, false, false},
+			},
+			want: MILPsolution{
+				solution: solution{
+					x: []float64{2, 3, 0, 0},
+					z: float64(-8),
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := MILPproblem{
+				c: tt.fields.c,
+				A: tt.fields.A,
+				b: tt.fields.b,
+				G: tt.fields.G,
+				h: tt.fields.h,
+				integralityConstraints: tt.fields.integralityConstraints,
+			}
+			got, err := p.Solve()
+			if (err != nil) != tt.wantErr {
+				t.Log(got.decisionLog)
+				t.Errorf("MILPproblem.Solve() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !(reflect.DeepEqual(tt.want.solution.x, got.solution.x) && tt.want.solution.z == got.solution.z) {
+				t.Log(got.decisionLog)
+				t.Errorf("MILPproblem.Solve() = %v, want %v", got, tt.want)
 			}
 		})
 	}

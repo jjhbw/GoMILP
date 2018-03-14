@@ -120,6 +120,55 @@ func (p subProblem) getInequalities() (*mat.Dense, []float64) {
 
 }
 
+// TODO: can be combined to a more generic lp.Convert()-like function. Currently requires checking for valid inputs beforehand.
+// Convert a problem with inequalities (G and h) to a problem with only nonnegative equalities using slack variables
+func convertToEqualities(c []float64, A *mat.Dense, b []float64, G *mat.Dense, h []float64) (cNew []float64, aNew *mat.Dense, bNew []float64) {
+
+	// number of original variables
+	nVar := len(c)
+
+	// number of original constraints
+	nCons := len(b)
+
+	// number of inequalities to add
+	nIneq := len(h)
+
+	// new number of total variables
+	nNewVar := nVar + nIneq
+
+	// new total number of equality constraints
+	nNewCons := len(b) + nIneq
+
+	// construct new c
+	cNew = make([]float64, nNewVar)
+	copy(cNew, c)
+
+	// add the slack variables to the objective function as zeroes
+	copy(cNew[nVar:], make([]float64, nIneq))
+
+	// concatenate the b and h vectors
+	bNew = make([]float64, nNewCons)
+	copy(bNew, b)
+	copy(bNew[nCons:], h)
+
+	// construct the new A matrix
+	aNew = mat.NewDense(nNewCons, nNewVar, nil)
+
+	// embed the original A matrix in the top left part of aNew, thus setting the original constraints
+	aNew.Slice(0, nCons, 0, nVar).(*mat.Dense).Copy(A)
+
+	// embed the G matrix into the new A, below the view of the old A.
+	aNew.Slice(nCons, nNewCons, 0, nVar).(*mat.Dense).Copy(G)
+
+	// diagonally fill the bottom-left part (next to G) with binary indicators of the slack variables
+	bottomRight := aNew.Slice(nCons, nNewCons, nVar, nVar+nIneq).(*mat.Dense)
+	for i := 0; i < nIneq; i++ {
+		bottomRight.Set(i, i, 1)
+	}
+
+	return
+}
+
 func (p subProblem) solve() (solution, error) {
 
 	var c []float64
@@ -129,30 +178,13 @@ func (p subProblem) solve() (solution, error) {
 	// get the inequality constraints
 	G, h := p.getInequalities()
 
-	// if inequality constraints are presented (general form), convert the problem to standard form.
+	// if inequality constraints are presented, amend the problem with these.
 	if G != nil {
-		fmt.Println("Problem with inequalities:")
-		fmt.Println("c: ", p.c)
-		fmt.Println("G:")
-		fmt.Println(mat.Formatted(G))
-		fmt.Println("h:", h)
-		fmt.Println("A: ")
-		fmt.Println(mat.Formatted(p.A))
-		fmt.Println("b:", p.b)
-
-		fmt.Println("converted to:")
-		c, A, b = lp.Convert(p.c, G, h, p.A, p.b)
-		fmt.Println(c)
-		fmt.Println(mat.Formatted(A))
-		fmt.Println(b)
-
+		c, A, b = convertToEqualities(p.c, G, h, p.A, p.b)
 	} else {
 		c = p.c
 		A = p.A
 		b = p.b
-		fmt.Println(c)
-		fmt.Println(mat.Formatted(A))
-		fmt.Println(b)
 	}
 
 	// apply the simplex algorithm
@@ -304,9 +336,6 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 	p1, p2 := incumbent.branch(p.integralityConstraints)
 	problemQueue = append(problemQueue, p1, p2)
 
-	// fmt.Println(p1)
-	// fmt.Println(p2)
-
 	for len(problemQueue) > 0 {
 
 		// pop a problem from the queue
@@ -355,8 +384,8 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 			}
 
 		default:
-			// TODO: this should never happen
-			panic("unexpected case")
+			// this should never happen and thus should never fail silently.
+			panic("unexpected case: could not decide what to do with branched subproblem")
 
 		}
 
