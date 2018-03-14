@@ -1,6 +1,7 @@
 package ilp
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -23,10 +24,29 @@ func TestMILPproblem_Solve_Smoke_NoInteger(t *testing.T) {
 		integralityConstraints: []bool{false, false, false, false},
 	}
 
-	z, x, err := prob.Solve()
+	solution, err := prob.Solve()
 	assert.NoError(t, err)
-	assert.Equal(t, float64(-8), z)
-	assert.Equal(t, x, []float64{2, 3, 0, 0})
+	assert.Equal(t, float64(-8), solution.solution.z)
+	assert.Equal(t, []float64{2, 3, 0, 0}, solution.solution.x)
+}
+
+func TestInitialSubproblemSolve(t *testing.T) {
+	prob := MILPproblem{
+		c: []float64{-1, -2, 0, 0},
+		A: mat.NewDense(2, 4, []float64{
+			-1, 2, 1, 0,
+			3, 1, 0, 1,
+		}),
+		b: []float64{4, 9},
+		integralityConstraints: []bool{false, false, true, false},
+	}
+
+	s := prob.toInitialSubProblem()
+
+	solution, err := s.solve()
+	t.Log(solution.problem)
+	fmt.Println(solution.x)
+	assert.NoError(t, err)
 }
 
 func TestFeasibleForIP(t *testing.T) {
@@ -306,6 +326,86 @@ func Test_subProblem_getInequalities(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got1, tt.want1) {
 				t.Errorf("subProblem.getInequalities() got1 = %v, want %v", got1, tt.want1)
+			}
+		})
+	}
+}
+
+func TestMILPproblem_Solve(t *testing.T) {
+	type fields struct {
+		c                      []float64
+		A                      *mat.Dense
+		b                      []float64
+		G                      *mat.Dense
+		h                      []float64
+		integralityConstraints []bool
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		want    MILPsolution
+		wantErr bool
+	}{
+		{
+			name: "No integrality constraints, no inequalities",
+			fields: fields{
+				c: []float64{-1, -2, 0, 0},
+				A: mat.NewDense(2, 4, []float64{
+					-1, 2, 1, 0,
+					3, 1, 0, 1,
+				}),
+				b: []float64{4, 9},
+				G: nil,
+				h: nil,
+				integralityConstraints: []bool{false, false, false, false},
+			},
+			want: MILPsolution{
+				solution: solution{
+					x: []float64{2, 3, 0, 0},
+					z: float64(-8),
+				},
+			},
+		},
+		// {
+		// 	name: "One integrality constraint, no inequalities",
+		// 	fields: fields{
+		// 		c: []float64{-1, -2, 0, 0},
+		// 		A: mat.NewDense(2, 4, []float64{
+		// 			-1, 2, 1, 0,
+		// 			3, 1, 0, 1,
+		// 		}),
+		// 		b: []float64{4, 9},
+		// 		G: nil,
+		// 		h: nil,
+		// 		integralityConstraints: []bool{false, true, false, false},
+		// 	},
+		// 	want: MILPsolution{
+		// 		solution: solution{
+		// 		// x: []float64{2, 3, 0, 0},
+		// 		// z: float64(-8),
+		// 		},
+		// 	},
+		// },
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := MILPproblem{
+				c: tt.fields.c,
+				A: tt.fields.A,
+				b: tt.fields.b,
+				G: tt.fields.G,
+				h: tt.fields.h,
+				integralityConstraints: tt.fields.integralityConstraints,
+			}
+			got, err := p.Solve()
+			if (err != nil) != tt.wantErr {
+				t.Log(got.decisionLog)
+				t.Errorf("MILPproblem.Solve() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !(reflect.DeepEqual(tt.want.solution.x, got.solution.x) && tt.want.solution.z == got.solution.z) {
+				t.Log(got.decisionLog)
+				t.Errorf("MILPproblem.Solve() = %v, want %v", got, tt.want)
 			}
 		})
 	}

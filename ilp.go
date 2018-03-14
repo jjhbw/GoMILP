@@ -1,6 +1,7 @@
 package ilp
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -46,6 +47,7 @@ func (p MILPproblem) toInitialSubProblem() subProblem {
 }
 
 type subProblem struct {
+
 	// Variables represent the same as in the MILPproblem
 	c []float64
 	A *mat.Dense
@@ -127,7 +129,7 @@ func (p subProblem) solve() (solution, error) {
 	G, h := p.getInequalities()
 
 	// if inequality constraints are presented (general form), convert the problem to standard form.
-	if G == nil {
+	if G != nil {
 		c, A, b = lp.Convert(p.c, G, h, p.A, p.b)
 	} else {
 		c = p.c
@@ -137,10 +139,6 @@ func (p subProblem) solve() (solution, error) {
 
 	// apply the simplex algorithm
 	z, x, err := lp.Simplex(c, A, b, 0, nil)
-
-	if err != nil {
-		return solution{}, err
-	}
 
 	return solution{
 		problem: &p,
@@ -173,7 +171,7 @@ func (s solution) branch() (p1, p2 subProblem) {
 			branchOn = lastBranchedVariable + 1
 		}
 
-		// if we already branched on all variables, we start back at the first.
+		// if we already branched on all variables, we start back at the first so we keep the counter at 0.
 	}
 
 	// Formulate the right constraints for this variable, based on its coefficient estimated by the current solution.
@@ -202,6 +200,7 @@ func (p subProblem) getChild(branchOn int, factor float64, smallerOrEqualThan fl
 	// point to the index of the variable to branch on
 	newConstraint.gsharp[branchOn] = float64(factor)
 
+	// add the new constraint
 	child.bnbConstraints = append(child.bnbConstraints, newConstraint)
 
 	return child
@@ -217,24 +216,52 @@ func any(in []bool) bool {
 	return false
 }
 
-func (p MILPproblem) Solve() (float64, []float64, error) {
+// TODO: any logging for the tree visualisation should be done at the highest possible level. i.e. in this method
+// TODO: better handling of errors
+
+func (p MILPproblem) Solve() (MILPsolution, error) {
 
 	if len(p.integralityConstraints) != len(p.c) {
 		panic("integrality constraints vector is not same length as vector c")
 	}
 
-	// check if the problem has integrality constraints. If not, return the results of the LP relaxation.
+	// add the initial LP relaxation to the problem queue
+	initialRelaxation := p.toInitialSubProblem()
+
+	// solve the initial relaxation
+	initialRelaxationSolution, err := initialRelaxation.solve()
+	if err != nil {
+		if err == lp.ErrInfeasible {
+			// override the error message in case of infeasible initial relaxation for easier debugging
+			return MILPsolution{}, INITIAL_RELAXATION_NOT_FEASIBLE
+		}
+		return MILPsolution{}, err
+	}
+
+	// if no integrality constraints are present, we can present the incumbent (initial relaxation) solution as-is
 	if !any(p.integralityConstraints) {
-		return lp.Simplex(p.c, p.A, p.b, 0, nil)
+		return MILPsolution{
+			solution:    initialRelaxationSolution,
+			decisionLog: nil,
+		}, nil
 	}
 
 	// Start the branch and bound procedure for this problem
-	var incumbent *solution
 	var problemQueue []subProblem
+	var steps []bnbStep
+	var incumbent *solution
 
-	// add the initial LP relaxation to the problem queue
-	initialRelaxation := p.toInitialSubProblem()
-	problemQueue = append(problemQueue, initialRelaxation)
+	// use the intial relaxation as the incumbent
+	incumbent = &initialRelaxationSolution
+
+	// branch the inital relaxation and add its children to the queue
+	p1, p2 := incumbent.branch()
+	problemQueue = append(problemQueue, p1, p2)
+
+	fmt.Println(p)
+	fmt.Println(initialRelaxation)
+	fmt.Println(p1)
+	fmt.Println(p2)
 
 	for len(problemQueue) > 0 {
 
@@ -245,40 +272,85 @@ func (p MILPproblem) Solve() (float64, []float64, error) {
 		// solve the subproblem
 		candidate, err := prob.solve()
 
-		// check if initial LP relaxation has failed (e.g. because it is not feasible)
-		if err != nil {
-			return 0, nil, err
+		// store the state to be evaluated as a step
+		step := bnbStep{
+			solution:         &candidate,
+			currentIncumbent: incumbent,
 		}
 
 		// decide on what to do with the solution:
 		switch {
-		// solution is not feasible
-		case err == lp.ErrInfeasible:
-			// noop
+
+		case err != nil:
+			// check if the subproblem was not feasible
+			if err == lp.ErrInfeasible {
+				step.decision = SUBPROBLEM_NOT_FEASIBLE
+			} else {
+				// any other error
+				//TODO: clean this up
+				fmt.Println(candidate.problem)
+				panic(err)
+			}
 
 		case incumbent.z >= candidate.z:
 			// noop
+			step.decision = WORSE_THAN_INCUMBENT
 
 		case incumbent.z < candidate.z:
 			if feasibleForIP(p.integralityConstraints, candidate.x) {
 				// candidate is an improvement over the incumbent
 				incumbent = &candidate
+				step.decision = BETTER_THAN_INCUMBENT_FEASIBLE
 			} else {
 				//candidate is an improvement over the incumbent, but not feasible.
-				//TODO: branch and add the descendants of this candidate to the queue
-
+				//branch and add the descendants of this candidate to the queue
+				p1, p2 := candidate.branch()
+				problemQueue = append(problemQueue, p1, p2)
+				step.decision = BETTER_THAN_INCUMBENT_BRANCHING
 			}
 
+		default:
+			// TODO: this should never happen
+			panic("unexpected case")
+
 		}
+
+		// save this step to the log
+		steps = append(steps, step)
+
 	}
 
-	//TODO: try to retain the information as to why the incumbent is nil at this point in the algorithm
-	if incumbent == nil {
-		return 0, nil, nil
-	}
+	return MILPsolution{
+		solution:    *incumbent,
+		decisionLog: steps,
+	}, nil
 
-	return incumbent.z, incumbent.x, nil
+}
 
+type MILPsolution struct {
+	decisionLog []bnbStep
+	solution    solution
+}
+
+// Branch-and-bound decisions
+// TODO: using strings only for debugging, switch to int32 for smaller memory footprint on big problems
+type bnbDecision string
+
+const (
+	SUBPROBLEM_NOT_FEASIBLE         bnbDecision = "subproblem has no feasible solution"
+	WORSE_THAN_INCUMBENT            bnbDecision = "worse than incumbent"
+	BETTER_THAN_INCUMBENT_BRANCHING bnbDecision = "better than incumbent but infeasible, so branching"
+	BETTER_THAN_INCUMBENT_FEASIBLE  bnbDecision = "better than incumbent and feasible, so replacing incumbent"
+)
+
+var (
+	INITIAL_RELAXATION_NOT_FEASIBLE = errors.New("initial relaxation is not feasible")
+)
+
+type bnbStep struct {
+	solution         *solution
+	currentIncumbent *solution
+	decision         bnbDecision
 }
 
 // check whether the solution vector is feasible in light of the integrality constraints for each variable
