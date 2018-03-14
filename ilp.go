@@ -394,6 +394,10 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 
 	}
 
+	if !feasibleForIP(p.integralityConstraints, incumbent.x) {
+		return MILPsolution{}, NO_INTEGER_FEASIBLE_SOLUTION
+	}
+
 	return MILPsolution{
 		solution:    *incumbent,
 		decisionLog: steps,
@@ -419,6 +423,7 @@ const (
 
 var (
 	INITIAL_RELAXATION_NOT_FEASIBLE = errors.New("initial relaxation is not feasible")
+	NO_INTEGER_FEASIBLE_SOLUTION    = errors.New("no integer feasible solution found")
 )
 
 type bnbStep struct {

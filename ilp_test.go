@@ -459,7 +459,7 @@ func TestMILPproblem_Solve(t *testing.T) {
 			},
 		},
 		{
-			name: "One integrality constraint, no initial constraints.",
+			name: "No integer feasible solution",
 			fields: fields{
 				c: []float64{-1, -2, 0, 0},
 				A: mat.NewDense(2, 4, []float64{
@@ -471,12 +471,24 @@ func TestMILPproblem_Solve(t *testing.T) {
 				h: nil,
 				integralityConstraints: []bool{false, true, false, false},
 			},
-			want: MILPsolution{
-				solution: solution{
-					x: []float64{2, 3, 0, 0},
-					z: float64(-8),
-				},
+			want:    MILPsolution{},
+			wantErr: true,
+		},
+		{
+			name: "One integrality constraint and no initial constraints.",
+			fields: fields{
+				c: []float64{-1, -2, 0, 0},
+				A: mat.NewDense(2, 4, []float64{
+					-1, 2.6, 1, 0,
+					3, 1.1, 0, 1,
+				}),
+				b: []float64{4, 9},
+				G: nil,
+				h: nil,
+				integralityConstraints: []bool{false, true, false, false},
 			},
+			// want:    MILPsolution{},
+			// wantErr: true,
 		},
 	}
 	for _, tt := range tests {
