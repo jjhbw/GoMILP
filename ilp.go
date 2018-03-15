@@ -120,9 +120,57 @@ func (p subProblem) getInequalities() (*mat.Dense, []float64) {
 
 }
 
+// Sanity check for the problems dimensions
+func sanityCheckDimensions(c []float64, A *mat.Dense, b []float64, G *mat.Dense, h []float64) error {
+	if G != nil {
+		if h == nil {
+			return errors.New("h vector is nil while G matrix is provided")
+		}
+
+		rG, cG := G.Dims()
+		if rG != len(h) {
+			return errors.New("Number of rows in G matrix is not equal to length of h")
+		}
+
+		if cG != len(c) {
+			return errors.New("Number of columns in G matrix is not equal to number of variables")
+		}
+	}
+
+	if h != nil {
+		if G == nil {
+			return errors.New("G matrix is nil while h vector is provided")
+		}
+	}
+
+	rA, cA := A.Dims()
+	if rA != len(b) {
+		return errors.New("Number of rows in A matrix is not equal to length of b")
+	}
+
+	if cA != len(c) {
+		return errors.New("Number of columns in A matrix is not equal to number of variables")
+	}
+
+	return nil
+}
+
 // TODO: can be combined to a more generic lp.Convert()-like function. Currently requires checking for valid inputs beforehand.
 // Convert a problem with inequalities (G and h) to a problem with only nonnegative equalities using slack variables
 func convertToEqualities(c []float64, A *mat.Dense, b []float64, G *mat.Dense, h []float64) (cNew []float64, aNew *mat.Dense, bNew []float64) {
+
+	//sanity checks
+	if A == nil {
+		panic("Provided pointer to A matrix is nil")
+	}
+
+	if G == nil {
+		panic("Provided pointer to G matrix is nil")
+	}
+
+	if insane := sanityCheckDimensions(c, A, b, G, h); insane != nil {
+		panic(insane)
+	}
 
 	// number of original variables
 	nVar := len(c)
@@ -164,6 +212,12 @@ func convertToEqualities(c []float64, A *mat.Dense, b []float64, G *mat.Dense, h
 	bottomRight := aNew.Slice(nCons, nNewCons, nVar, nVar+nIneq).(*mat.Dense)
 	for i := 0; i < nIneq; i++ {
 		bottomRight.Set(i, i, 1)
+	}
+
+	// TODO: move to tests
+	// sanity check the output dimensions
+	if insane := sanityCheckDimensions(cNew, aNew, bNew, nil, nil); insane != nil {
+		panic(insane)
 	}
 
 	return
@@ -308,14 +362,7 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 		return MILPsolution{}, err
 	}
 
-	// if no integrality constraints are present, we can present the incumbent (initial relaxation) solution as-is
-	if !any(p.integralityConstraints) {
-		return MILPsolution{
-			solution:    initialRelaxationSolution,
-			decisionLog: nil,
-		}, nil
-	}
-
+	// If no integrality constraints are present, we can return the initial solution as-is if it is feasible.
 	// moreover, if the solution to the initial relaxation already satisfies all integrality constraints, we can present it as-is.
 	if feasibleForIP(p.integralityConstraints, initialRelaxationSolution.x) {
 		return MILPsolution{
@@ -434,6 +481,9 @@ type bnbStep struct {
 
 // check whether the solution vector is feasible in light of the integrality constraints for each variable
 func feasibleForIP(constraints []bool, solution []float64) bool {
+	if len(constraints) != len(solution) {
+		panic(fmt.Sprint("constraints vector and solution vector not of equal size: ", constraints, solution))
+	}
 	for i := range solution {
 		if constraints[i] {
 			if !isAllInteger(solution[i]) {
