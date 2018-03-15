@@ -550,7 +550,26 @@ func TestRandomized(t *testing.T) {
 	testRandom(t, 100, 0, 10, rnd)
 
 	// larger problems
-	// testRandom(t, 100, 0, 100, rnd)
+	testRandom(t, 100, 0, 100, rnd)
+}
+
+func testRandom(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.Rand) {
+	// Try a bunch of random LPs
+	for i := 0; i < nTest; i++ {
+		n := rnd.Intn(maxN) + 2 // n must be at least two.
+		m := rnd.Intn(n-1) + 1  // m must be between 1 and n
+		prob := getRandomMILP(pZero, m, n, rnd)
+
+		fmt.Println("c:")
+		fmt.Println(prob.c)
+		fmt.Println("A:")
+		fmt.Println(mat.Formatted(prob.A))
+		fmt.Println("b:")
+		fmt.Println(prob.b)
+		solution, err := prob.Solve()
+
+		fmt.Println(solution.solution.x, solution.solution.z, err)
+	}
 }
 
 func getRandomMILP(pZero float64, m, n int, rnd *rand.Rand) *MILPproblem {
@@ -614,21 +633,6 @@ func getRandomMILP(pZero float64, m, n int, rnd *rand.Rand) *MILPproblem {
 	}
 }
 
-func testRandom(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.Rand) {
-	// Try a bunch of random LPs
-	for i := 0; i < nTest; i++ {
-		n := rnd.Intn(maxN) + 2 // n must be at least two.
-		m := rnd.Intn(n-1) + 1  // m must be between 1 and n
-		prob := getRandomMILP(pZero, m, n, rnd)
-
-		solution, err := prob.Solve()
-		// if err != nil {
-		// 	t.Error(err)
-		// }
-		fmt.Println(solution.solution.x, solution.solution.z, err)
-	}
-}
-
 // random boolean generator
 type boolgen struct {
 	src       rand.Source
@@ -653,6 +657,7 @@ func (b *boolgen) Bool() bool {
 }
 
 // // TODO: weird BLAS-level bug. Is this a square matrix thing?
+// opened issue on Gonum github march 15th 2018
 // func Test_ThisBreaksGonumSimplex(t *testing.T) {
 // 	c := []float64{-1, -2}
 // 	A := mat.NewDense(2, 2, []float64{

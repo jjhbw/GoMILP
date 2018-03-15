@@ -12,6 +12,7 @@ import (
 
 // TODO: fix the 'unbounded problem' issue originating from usage of the lp.Convert() function.
 // TODO: allow for MAXimization problems, perhaps with a nice method-chaining API.
+// TODO: in branched subproblems: intiate simplex at solution of parent? (using argument of lp.Simplex)
 // TODO: try to formulate more advanced constraints, like sets of values instead of just integrality.
 // Note that having integer sets as constraints is basically the same as having an integrality constraint + a <= and >= bound.
 // Branching on this type of constraint can be optimized in a neat way (i.e. x>=0, x<=1, x<=0 ~-> x = 0)
@@ -225,24 +226,27 @@ func convertToEqualities(c []float64, A *mat.Dense, b []float64, G *mat.Dense, h
 
 func (p subProblem) solve() (solution, error) {
 
-	var c []float64
-	var A *mat.Dense
-	var b []float64
-
 	// get the inequality constraints
 	G, h := p.getInequalities()
 
+	var z float64
+	var x []float64
+	var err error
+
 	// if inequality constraints are presented, amend the problem with these.
 	if G != nil {
-		c, A, b = convertToEqualities(p.c, G, h, p.A, p.b)
-	} else {
-		c = p.c
-		A = p.A
-		b = p.b
-	}
+		c, A, b := convertToEqualities(p.c, G, h, p.A, p.b)
 
-	// apply the simplex algorithm
-	z, x, err := lp.Simplex(c, A, b, 0, nil)
+		z, x, err = lp.Simplex(c, A, b, 0, nil)
+
+		// take only the non-slack variables from the result.
+		if err == nil && len(x) != len(p.c) {
+			x = x[:len(p.c)]
+		}
+
+	} else {
+		z, x, err = lp.Simplex(p.c, p.A, p.b, 0, nil)
+	}
 
 	return solution{
 		problem: &p,
