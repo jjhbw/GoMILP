@@ -29,7 +29,7 @@ func TestProblem_checkExpression(t *testing.T) {
 
 }
 
-// a simple case with one inequality and no integrality constraints
+// a simple minimization (the default) case with one inequality and no integrality constraints
 func TestProblem_toSolveableA(t *testing.T) {
 
 	// build an abstract Problem
@@ -97,7 +97,7 @@ func TestProblem_toSolveableA(t *testing.T) {
 	assert.Equal(t, expected, *solveable)
 }
 
-// No inequalities and 2 integrality constraints
+// A minimization: no inequalities and 2 integrality constraints
 func TestProblem_toSolveableB(t *testing.T) {
 
 	// build an abstract Problem
@@ -137,6 +137,64 @@ func TestProblem_toSolveableB(t *testing.T) {
 	solveable := prob.toSolveable()
 	expected := MILPproblem{
 		c: []float64{-1, -2, 1},
+		A: mat.NewDense(3, 3, []float64{
+			1, 0, 0,
+			0, 3, 0,
+			0, 0, 1,
+		}),
+		b: []float64{5, 2, 2},
+		G: nil,
+		h: nil,
+		integralityConstraints: []bool{false, true, true},
+	}
+
+	//Note:  do not compare pointers
+	assert.Equal(t, expected, *solveable)
+}
+
+// A maximization: no inequalities and 2 integrality constraints
+func TestProblem_toSolveableC(t *testing.T) {
+
+	// build an abstract Problem
+	prob := NewProblem()
+
+	// add the variables
+	v1 := prob.AddVariable(-1, false)
+	v2 := prob.AddVariable(-2, true)
+	v3 := prob.AddVariable(1, true)
+
+	// add the equality constraints
+	prob.AddEquality([]expression{
+		expression{
+			coef:     1,
+			variable: v1,
+		},
+	},
+		5,
+	)
+	prob.AddEquality([]expression{
+		expression{
+			coef:     3,
+			variable: v2,
+		},
+	},
+		2,
+	)
+	prob.AddEquality([]expression{
+		expression{
+			coef:     1,
+			variable: v3,
+		},
+	},
+		2,
+	)
+
+	// set the problem to maximize
+	prob.Maximize()
+
+	solveable := prob.toSolveable()
+	expected := MILPproblem{
+		c: []float64{1, 2, -1},
 		A: mat.NewDense(3, 3, []float64{
 			1, 0, 0,
 			0, 3, 0,

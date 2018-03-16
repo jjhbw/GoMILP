@@ -600,6 +600,7 @@ func testRandom(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.Rand
 	}
 }
 
+// adapted from Gonum's lp.Simplex.
 func getRandomMILP(pZero float64, m, n int, rnd *rand.Rand) *MILPproblem {
 
 	if m == 0 || n == 0 {

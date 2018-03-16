@@ -4,16 +4,18 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-// TODO: allow for MAXimization problems, perhaps with a nice method-chaining API.
 // TODO: try to formulate more advanced constraints, like sets of values instead of just integrality.
-// Note that having integer sets as constraints is basically the same as having an integrality constraint + a <= and >= bound.
+// Note that having integer sets as constraints is basically the same as having an integrality constraint, and a <= and >= bound.
 // Branching on this type of constraint can be optimized in a neat way (i.e. x>=0, x<=1, x<=0 ~-> x = 0)
+// TODO: dealing with variables that are unrestricted in sign (currently, each var is subject to a nonnegativity constraint)
 
 // The abstract MILP problem representation
 type Problem struct {
-	Variables    []*Variable
-	Inequalities []Inequality
-	Equalities   []Equality
+	// minimizes by default
+	maximize     bool
+	variables    []*Variable
+	inequalities []Inequality
+	equalities   []Equality
 }
 
 // A variable of the MILP problem.
@@ -63,7 +65,7 @@ func (p *Problem) AddVariable(coef float64, integer bool) *Variable {
 		Integer:     integer,
 	}
 
-	p.Variables = append(p.Variables, &v)
+	p.variables = append(p.variables, &v)
 
 	return &v
 }
@@ -80,7 +82,7 @@ func (p *Problem) AddEquality(expr []expression, equalTo float64) {
 		}
 	}
 
-	p.Equalities = append(p.Equalities, Equality{
+	p.equalities = append(p.equalities, Equality{
 		expressions: expr,
 		equalTo:     equalTo,
 	})
@@ -99,18 +101,26 @@ func (p *Problem) AddInEquality(expr []expression, smallerThan float64) {
 		}
 	}
 
-	p.Inequalities = append(p.Inequalities, Inequality{
+	p.inequalities = append(p.inequalities, Inequality{
 		expressions: expr,
 		smallerThan: smallerThan,
 	})
 
 }
 
+func (p *Problem) Maximize() {
+	p.maximize = true
+}
+
+func (p *Problem) Minimize() {
+	p.maximize = false
+}
+
 // Check whether the expression is legal considering the variables currently present in the problem
 func (p *Problem) checkExpression(e expression) bool {
 
 	// check whether the pointer to the variable provided is currently included in the Problem
-	for _, v := range p.Variables {
+	for _, v := range p.variables {
 		if v == e.variable {
 			return true
 		}
@@ -128,21 +138,29 @@ func (p *Problem) toSolveable() *MILPproblem {
 	// simultaneously parse the integrality constraints
 	var c []float64
 	var integrality []bool
-	for _, v := range p.Variables {
-		c = append(c, v.Coefficient)
+	for _, v := range p.variables {
+
+		// if the Problem is set to be maximized, we assume that all variable coefficients reflect that.
+		// To turn this maximization problem into a minimization one, we multiply all coefficients with -1.
+		k := v.Coefficient
+		if p.maximize {
+			k = k * -1
+		}
+
+		c = append(c, k)
 		integrality = append(integrality, v.Integer)
 	}
 
 	// add the equality constraints
 	var b []float64
 	var Adata []float64
-	for _, equality := range p.Equalities {
+	for _, equality := range p.equalities {
 
 		// build the matrix row for the equality
-		equalityRow := make([]float64, len(p.Variables))
+		equalityRow := make([]float64, len(p.variables))
 
 		for _, exp := range equality.expressions {
-			for i, va := range p.Variables {
+			for i, va := range p.variables {
 				if exp.variable == va {
 					equalityRow[i] = exp.coef
 				}
@@ -156,16 +174,16 @@ func (p *Problem) toSolveable() *MILPproblem {
 	}
 
 	// combine the Adata vector into a matrix
-	A := mat.NewDense(len(p.Equalities), len(p.Variables), Adata)
+	A := mat.NewDense(len(p.equalities), len(p.variables), Adata)
 
 	// get the inequality constraints
 	var h []float64
 	var Gdata []float64
-	for _, inEquality := range p.Inequalities {
-		inEqualityRow := make([]float64, len(p.Variables))
+	for _, inEquality := range p.inequalities {
+		inEqualityRow := make([]float64, len(p.variables))
 
 		for _, exp := range inEquality.expressions {
-			for i, va := range p.Variables {
+			for i, va := range p.variables {
 				if exp.variable == va {
 					inEqualityRow[i] = exp.coef
 				}
@@ -181,8 +199,8 @@ func (p *Problem) toSolveable() *MILPproblem {
 
 	// combine the Gdata vector into a matrix
 	var G *mat.Dense
-	if len(p.Inequalities) > 0 {
-		G = mat.NewDense(len(p.Inequalities), len(p.Variables), Gdata)
+	if len(p.inequalities) > 0 {
+		G = mat.NewDense(len(p.inequalities), len(p.variables), Gdata)
 	}
 
 	return &MILPproblem{
