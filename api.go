@@ -8,8 +8,7 @@ import (
 // Note that having integer sets as constraints is basically the same as having an integrality constraint, and a <= and >= bound.
 // Branching on this type of constraint can be optimized in a neat way (i.e. x>=0, x<=1, x<=0 ~-> x = 0)
 // TODO: dealing with variables that are unrestricted in sign (currently, each var is subject to a nonnegativity constraint)
-// TODO: vendor dependencies
-// TODO: make CLI/Problem serialization format for easy integration with R/python-based analysis tooling
+// TODO: make CLI and Problem serialization format for easy integration with R/python-based analysis tooling for debugging of mathematical properties.
 
 // The abstract MILP problem representation
 type Problem struct {

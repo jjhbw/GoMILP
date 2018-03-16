@@ -10,7 +10,6 @@ import (
 )
 
 // TODO: add more in-depth MILP test cases with known solutions for the BNB routine. Maybe compare using GLPK Go bindings?
-// TODO: remove workaround for issue https://github.com/gonum/gonum/issues/441
 // TODO: in branched subproblems: intiate simplex at solution of parent? (using argument of lp.Simplex)
 // TODO: does fiddling with the simplex tolerance value improve outcomes?
 // TODO: visualising the enumeration tree?
@@ -53,7 +52,6 @@ type MILPsolution struct {
 type bnbDecision string
 
 const (
-	SUBPROBLEM_NO_DOF               bnbDecision = "subproblem has no degrees of freedom"
 	SUBPROBLEM_NOT_FEASIBLE         bnbDecision = "subproblem has no feasible solution"
 	WORSE_THAN_INCUMBENT            bnbDecision = "worse than incumbent"
 	BETTER_THAN_INCUMBENT_BRANCHING bnbDecision = "better than incumbent but infeasible, so branching"
@@ -63,15 +61,13 @@ const (
 var (
 	INITIAL_RELAXATION_NOT_FEASIBLE = errors.New("initial relaxation is not feasible")
 	NO_INTEGER_FEASIBLE_SOLUTION    = errors.New("no integer feasible solution found")
-	PROBLEM_HAS_NO_DOF              = errors.New("(sub)problem has DOF <= 0")
 )
 
 var (
 	// problem-specific reasons why simplex-solving a problem can fail
-	// these errors are expeced in a sense, do not warrant a panic, correspond to their respective bnbDecision.
+	// these errors are expeced in a sense, do not warrant a panic, and correspond to a bnbDecision.
 	expectedFailures = map[error]bnbDecision{
 		NO_INTEGER_FEASIBLE_SOLUTION: SUBPROBLEM_NOT_FEASIBLE,
-		PROBLEM_HAS_NO_DOF:           SUBPROBLEM_NO_DOF,
 	}
 )
 
@@ -282,18 +278,6 @@ func getDOF(c []float64, A mat.Matrix) int {
 	return len(c) - rows
 }
 
-// TODO: WORKAROUND
-// wrapper around Gonum's simplex algorithm to perform a preflight check on the DOF.
-// if DOF <= 0, Simplex will panic at the BLAS level due to a bug in gonum's matrix implementation.
-// see issue https://github.com/gonum/gonum/issues/441
-func computeSimplexSimplex(c []float64, A mat.Matrix, b []float64, tol float64, initialBasic []int) (optF float64, optX []float64, err error) {
-	if getDOF(c, A) <= 0 {
-		return 0, nil, PROBLEM_HAS_NO_DOF
-	}
-
-	return lp.Simplex(c, A, b, tol, initialBasic)
-}
-
 func (p subProblem) solve() (solution, error) {
 
 	// get the inequality constraints
@@ -314,7 +298,7 @@ func (p subProblem) solve() (solution, error) {
 		// fmt.Println("b:")
 		// fmt.Println(b)
 
-		z, x, err = computeSimplexSimplex(c, A, b, 0, nil)
+		z, x, err = lp.Simplex(c, A, b, 0, nil)
 
 		// take only the non-slack variables from the result.
 		if err == nil && len(x) != len(p.c) {
@@ -329,7 +313,7 @@ func (p subProblem) solve() (solution, error) {
 		// fmt.Println("b:")
 		// fmt.Println(p.b)
 
-		z, x, err = computeSimplexSimplex(p.c, p.A, p.b, 0, nil)
+		z, x, err = lp.Simplex(p.c, p.A, p.b, 0, nil)
 	}
 
 	return solution{

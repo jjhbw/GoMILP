@@ -680,20 +680,3 @@ func (b *boolgen) Bool() bool {
 
 	return result
 }
-
-// // repro case of BLAS-level bug.
-// opened issue on Gonum github march 15th 2018
-// According to Gonum's Brendan Tracey
-// this triggers an edge case in Gonum's mat package because the LP has the same number of constraints as variables,
-// and so there are no degrees of freedom.
-// see issue https://github.com/gonum/gonum/issues/441
-// func Test_ThisBreaksGonumSimplex(t *testing.T) {
-// 	c := []float64{-1, -2}
-// 	A := mat.NewDense(2, 2, []float64{
-// 		-1, 2.6,
-// 		3, 1.1,
-// 	})
-// 	b := []float64{4, 9}
-
-// 	lp.Simplex(c, A, b, 0, nil)
-// }
