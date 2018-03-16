@@ -377,7 +377,7 @@ func (s solution) branch(integralityConstraints []bool) (p1, p2 subProblem) {
 	p1 = s.problem.getChild(branchOn, 1, math.Floor(currentCoeff))
 
 	// formulate 'larger than' constraints of the branchpoint as 'smaller or equal than' by inverting the sign
-	p2 = s.problem.getChild(branchOn, -1, -math.Ceil(currentCoeff))
+	p2 = s.problem.getChild(branchOn, -1, -(math.Floor(currentCoeff) + 1))
 
 	return
 }
