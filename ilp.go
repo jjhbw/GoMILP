@@ -9,6 +9,7 @@ import (
 	"gonum.org/v1/gonum/optimize/convex/lp"
 )
 
+// TODO: primal vs dual simplex?
 // TODO: how to deal with matrix degeneracy in subproblems?
 // TODO: add more in-depth MILP test cases with known solutions for the BNB routine. Maybe compare using GLPK Go bindings?
 // TODO: in branched subproblems: intiate simplex at solution of parent? (using argument of lp.Simplex)
@@ -52,6 +53,7 @@ type MILPsolution struct {
 type bnbDecision string
 
 const (
+	SUBPROBLEM_IS_DEGENERATE        bnbDecision = "subproblem contains a degenerate (singular) matrix"
 	SUBPROBLEM_NOT_FEASIBLE         bnbDecision = "subproblem has no feasible solution"
 	WORSE_THAN_INCUMBENT            bnbDecision = "worse than incumbent"
 	BETTER_THAN_INCUMBENT_BRANCHING bnbDecision = "better than incumbent but infeasible, so branching"
@@ -67,7 +69,8 @@ var (
 	// problem-specific reasons why simplex-solving a problem can fail
 	// these errors are expeced in a sense, do not warrant a panic, and correspond to a bnbDecision.
 	expectedFailures = map[error]bnbDecision{
-		NO_INTEGER_FEASIBLE_SOLUTION: SUBPROBLEM_NOT_FEASIBLE,
+		lp.ErrInfeasible: SUBPROBLEM_IS_DEGENERATE,
+		lp.ErrSingular:   SUBPROBLEM_NOT_FEASIBLE,
 	}
 )
 
@@ -396,9 +399,6 @@ func any(in []bool) bool {
 
 // takes a solver failure and determines whether it warrants a panic or whether it is expected.
 func translateSolverFailure(err error) bnbDecision {
-	if err == lp.ErrInfeasible {
-		return SUBPROBLEM_NOT_FEASIBLE
-	}
 	for failure, decision := range expectedFailures {
 		if failure == err {
 			return decision
