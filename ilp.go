@@ -17,6 +17,10 @@ import (
 // TODO: current calculation of DOF is more of a workaround around a gonum mat bug than a good calculation of DOF
 // as it does not take into account whether the constraint equations are linearly independent.
 // TODO: The used branching heuristic (selects a variable to branch on) is extremely dumb. Improve!
+// TODO: also fun: linear program preprocessing (MATLAB docs: https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html#btv20av)
+// TODO: Queue is currently FIFO. For depth-first exploration, we should go with a LIFO queue.
+// TODO: Add heuristic determining which node gets explored first (as we are using depth-first search) https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html?s_tid=gn_loc_drop#btzwtmv
+// TODO: make solving a MILPproblem cancellable with a context
 
 type MILPproblem struct {
 	// 	minimize c^T * x
