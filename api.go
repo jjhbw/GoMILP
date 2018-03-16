@@ -4,13 +4,14 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-// TODO: try to formulate more advanced constraints, like sets of values instead of just integrality.
+// TODO: More randomized testing and comparison with GLPK at the abstract Problem API level.
+// TODO: try to formulate more advanced constraints, like sets of values instead of just integrality?
 // Note that having integer sets as constraints is basically the same as having an integrality constraint, and a <= and >= bound.
 // Branching on this type of constraint can be optimized in a neat way (i.e. x>=0, x<=1, x<=0 ~-> x = 0)
 // TODO: dealing with variables that are unrestricted in sign (currently, each var is subject to a nonnegativity constraint)
 // TODO: make CLI and Problem serialization format for easy integration with R/python-based analysis tooling for debugging of mathematical properties.
-// TODO: explore options regarding branch-and-bound parallelism
-// TODO: make solver cancellable with a context
+// TODO: explore options regarding branch-and-bound parallelism. See also computation of (pseudo-)costs and expensive branching heuristics.
+// TODO: make solver cancellable with a context by spinning the actual solving off into a goroutine.
 
 // The abstract MILP problem representation
 type Problem struct {

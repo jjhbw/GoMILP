@@ -58,6 +58,7 @@ const (
 	WORSE_THAN_INCUMBENT            bnbDecision = "worse than incumbent"
 	BETTER_THAN_INCUMBENT_BRANCHING bnbDecision = "better than incumbent but infeasible, so branching"
 	BETTER_THAN_INCUMBENT_FEASIBLE  bnbDecision = "better than incumbent and feasible, so replacing incumbent"
+	INITIAL_RX_FEASIBLE_FOR_IP      bnbDecision = "initial relaxation is feasible for IP"
 )
 
 var (
@@ -430,8 +431,12 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 	// moreover, if the solution to the initial relaxation already satisfies all integrality constraints, we can present it as-is.
 	if feasibleForIP(p.integralityConstraints, initialRelaxationSolution.x) {
 		return MILPsolution{
-			solution:    initialRelaxationSolution,
-			decisionLog: nil,
+			solution: initialRelaxationSolution,
+			decisionLog: []bnbStep{{
+				solution:         &initialRelaxationSolution,
+				currentIncumbent: nil,
+				decision:         INITIAL_RX_FEASIBLE_FOR_IP,
+			}},
 		}, nil
 	}
 

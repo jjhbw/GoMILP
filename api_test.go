@@ -265,7 +265,7 @@ func ToGLPK(p Problem) *glpk.Prob {
 		eqRow := converted.AddRows(1)                              // returns the index of the added row
 		converted.SetRowName(eqRow, fmt.Sprintf("equality_%v", i)) // name the row for debugging purposes
 		converted.SetMatRow(eqRow, indices, equalityCoefs)         // NOTE: from the docs: "ind[0] and val[0] are ignored", so a leading 0 is given in both vectors."
-		converted.SetRowBnds(eqRow, glpk.FX, 0, equality.equalTo)
+		converted.SetRowBnds(eqRow, glpk.FX, equality.equalTo, 0)
 	}
 
 	// // add the inequality constraints
@@ -286,7 +286,7 @@ func ToGLPK(p Problem) *glpk.Prob {
 		ineqRow := converted.AddRows(1)                                // returns the index of the added row
 		converted.SetRowName(ineqRow, fmt.Sprintf("inequality_%v", i)) // name the row for debugging purposes
 		converted.SetMatRow(ineqRow, indices, inEqualityCoefs)         // NOTE: from the docs: "ind[0] and val[0] are ignored", so a leading 0 is given in both vectors."
-		converted.SetRowBnds(ineqRow, glpk.FX, 0, ineq.smallerThan)
+		converted.SetRowBnds(ineqRow, glpk.FX, ineq.smallerThan, 0)
 	}
 
 	return converted
@@ -298,39 +298,37 @@ func TestCompareWithGLPK(t *testing.T) {
 
 	// add the variables
 	v1 := prob.AddVariable(-1, false)
-	v2 := prob.AddVariable(-2, true)
-	v3 := prob.AddVariable(1, true)
+	v2 := prob.AddVariable(-2, false)
+	v3 := prob.AddVariable(0, true)
 
 	// add the equality constraints
 	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v1,
-		},
-	},
-		5,
-	)
+		Expression{coef: -1, variable: v1},
+		Expression{coef: 2.6, variable: v2},
+		Expression{coef: 1.2, variable: v3},
+	}, 4)
 	prob.AddEquality([]Expression{
-		Expression{
-			coef:     3,
-			variable: v2,
-		},
-	},
-		2,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v3,
-		},
-	},
-		2,
-	)
+		Expression{coef: 3, variable: v1},
+		Expression{coef: 1.1, variable: v2},
+		Expression{coef: 1.6, variable: v3},
+	}, 9)
 
 	// set the problem to maximize
-	prob.Maximize()
+	prob.Minimize()
 
+	// solve the problem using our own code
+	solution, err := prob.toSolveable().Solve()
+	if err != nil {
+		t.Error(err)
+	}
+	fmt.Println(solution.decisionLog)
+	fmt.Println(solution.solution)
+
+	// convert the problem to glpk
 	glpkProblem := ToGLPK(prob)
+
+	// save the problem for debugging purposes
+	glpkProblem.WriteLP(nil, "test.lp")
 
 	// solve the problem with the integer solver
 	iocp := glpk.NewIocp()
@@ -343,7 +341,7 @@ func TestCompareWithGLPK(t *testing.T) {
 	// parse the solutions
 	fmt.Printf("%s = %g", glpkProblem.ObjName(), glpkProblem.ObjVal())
 	for i := 0; i < 3; i++ {
-		fmt.Printf("; %s = %g", glpkProblem.ColName(i+1), glpkProblem.ColPrim(i+1))
+		fmt.Printf("; %s = %g", glpkProblem.ColName(i+1), glpkProblem.MipColVal(i+1))
 	}
 	fmt.Println()
 
