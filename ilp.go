@@ -9,14 +9,15 @@ import (
 	"gonum.org/v1/gonum/optimize/convex/lp"
 )
 
-// TODO: add more in-depth tests for the BNB routine: should properly find integer solutions.
+// TODO: add more in-depth MILP test cases with known solutions for the BNB routine. Maybe compare using GLPK Go bindings?
 // TODO: remove workaround for issue https://github.com/gonum/gonum/issues/441
-// TODO: vendor dependencies
 // TODO: in branched subproblems: intiate simplex at solution of parent? (using argument of lp.Simplex)
+// TODO: does fiddling with the simplex tolerance value improve outcomes?
 // TODO: visualising the enumeration tree?
 // TODO: current calculation of DOF is more of a workaround around a gonum mat bug than a good calculation of DOF
 // as it does not take into account whether the constraint equations are linearly independent.
-// TODO: The used branching heuristic (selects a variable to branch on) is extremely dumb. Improve!
+// TODO: Currently implemented only the simplest branching heuristics. Room for improvement.
+// TODO: if branching yields an infeasible or otherwise unsolveable problem, try with another branching heuristic or use the second-best option.
 // TODO: also fun: linear program preprocessing (MATLAB docs: https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html#btv20av)
 // TODO: Queue is currently FIFO. For depth-first exploration, we should go with a LIFO queue.
 // TODO: Add heuristic determining which node gets explored first (as we are using depth-first search) https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html?s_tid=gn_loc_drop#btzwtmv
@@ -37,6 +38,10 @@ type MILPproblem struct {
 
 	// which variables to apply the integrality constraint to. Should have same order as c.
 	integralityConstraints []bool
+
+	// which branching heuristic to use. Determines which integer variable is branched on at each split.
+	// defaults to 0 == maxFun
+	branchingHeuristic BranchHeuristic
 }
 
 type MILPsolution struct {
@@ -44,8 +49,7 @@ type MILPsolution struct {
 	solution    solution
 }
 
-// Branch-and-bound decisions
-// TODO: using strings only for debugging, switch to int32 for smaller memory footprint on big problems
+// Branch-and-bound decisions that can be made by the algorithm
 type bnbDecision string
 
 const (
@@ -105,6 +109,9 @@ type subProblem struct {
 
 	// additional inequality constraints for branch-and-bound
 	bnbConstraints []bnbConstraint
+
+	// heuristic to determine variable to branch on
+	branchHeuristic BranchHeuristic
 }
 
 type bnbConstraint struct {
@@ -345,8 +352,21 @@ type solution struct {
 // e.g. if this is the first time the problem has branched: create two new problems with new constraints on variable x1, etc.
 func (s solution) branch() (p1, p2 subProblem) {
 
-	// select variable to branch on
-	branchOn := s.naiveBranchPoint()
+	// select variable to branch on based on the provided heuristic method
+	branchOn := 0
+	switch s.problem.branchHeuristic {
+	case BRANCH_MAXFUN:
+		branchOn = maxFunBranchPoint(s.problem.c, s.problem.integralityConstraints)
+
+	case BRANCH_FRACTIONAL:
+		branchOn = closestFractionalBranchPoint(s.problem.c, s.problem.integralityConstraints)
+
+	case BRANCH_NAIVE:
+		branchOn = s.naiveBranchPoint()
+
+	default:
+		panic("provided branching heuristic config variable unknown")
+	}
 
 	// Formulate the right constraints for this variable, based on its coefficient estimated by the current solution.
 	currentCoeff := s.x[branchOn]

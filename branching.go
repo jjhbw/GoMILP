@@ -2,6 +2,15 @@ package ilp
 
 import "math"
 
+// selectable heuristic options
+type BranchHeuristic int
+
+const (
+	BRANCH_MAXFUN     BranchHeuristic = 0
+	BRANCH_FRACTIONAL BranchHeuristic = 1
+	BRANCH_NAIVE      BranchHeuristic = 2
+)
+
 // Get the variable to branch on by looking at which variables we branched on previously.
 // If there are no branches yet, so we start at the first constrained variable.
 // Note that this is a really naive way to find a nice variable to branch on.

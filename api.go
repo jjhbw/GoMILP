@@ -8,14 +8,21 @@ import (
 // Note that having integer sets as constraints is basically the same as having an integrality constraint, and a <= and >= bound.
 // Branching on this type of constraint can be optimized in a neat way (i.e. x>=0, x<=1, x<=0 ~-> x = 0)
 // TODO: dealing with variables that are unrestricted in sign (currently, each var is subject to a nonnegativity constraint)
+// TODO: vendor dependencies
+// TODO: make CLI/Problem serialization format for easy integration with R/python-based analysis tooling
 
 // The abstract MILP problem representation
 type Problem struct {
 	// minimizes by default
-	maximize     bool
+	maximize bool
+
+	// the problem structure
 	variables    []*Variable
 	inequalities []Inequality
 	equalities   []Equality
+
+	// the branching heuristic to use for branch-and-bound (defaults to 0 == maxFun)
+	branchingHeuristic BranchHeuristic
 }
 
 // A variable of the MILP problem.
@@ -116,6 +123,10 @@ func (p *Problem) Minimize() {
 	p.maximize = false
 }
 
+func (p *Problem) BranchingHeuristic(choice BranchHeuristic) {
+	p.branchingHeuristic = choice
+}
+
 // Check whether the expression is legal considering the variables currently present in the problem
 func (p *Problem) checkExpression(e expression) bool {
 
@@ -210,5 +221,6 @@ func (p *Problem) toSolveable() *MILPproblem {
 		G: G,
 		h: h,
 		integralityConstraints: integrality,
+		branchingHeuristic:     p.branchingHeuristic,
 	}
 }
