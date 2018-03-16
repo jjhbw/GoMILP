@@ -10,11 +10,9 @@ import (
 )
 
 // TODO: add more in-depth tests for the BNB routine: should properly find integer solutions.
-// TODO: allow for MAXimization problems, perhaps with a nice method-chaining API.
+// TODO: remove workaround for issue https://github.com/gonum/gonum/issues/441
+// TODO: vendor dependencies
 // TODO: in branched subproblems: intiate simplex at solution of parent? (using argument of lp.Simplex)
-// TODO: try to formulate more advanced constraints, like sets of values instead of just integrality.
-// Note that having integer sets as constraints is basically the same as having an integrality constraint + a <= and >= bound.
-// Branching on this type of constraint can be optimized in a neat way (i.e. x>=0, x<=1, x<=0 ~-> x = 0)
 // TODO: visualising the enumeration tree?
 // TODO: current calculation of DOF is more of a workaround around a gonum mat bug than a good calculation of DOF
 // as it does not take into account whether the constraint equations are linearly independent.
