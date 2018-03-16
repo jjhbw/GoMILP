@@ -226,13 +226,9 @@ func Test_solution_branch(t *testing.T) {
 		x       []float64
 		z       float64
 	}
-	type args struct {
-		integralityConstraints []bool
-	}
 	tests := []struct {
 		name   string
 		fields fields
-		args   args
 		wantP1 subProblem
 		wantP2 subProblem
 	}{
@@ -246,13 +242,11 @@ func Test_solution_branch(t *testing.T) {
 						3, 1, 0, 1,
 					}),
 					b: []float64{4, 9},
+					integralityConstraints: []bool{true, false, false, false},
 				},
 				// a fake problem. This solution does not have to be true or feasible.
 				x: []float64{1.2, 3, 0, 0},
 				z: float64(-8),
-			},
-			args: args{
-				integralityConstraints: []bool{true, false, false, false},
 			},
 			wantP1: subProblem{
 				c: []float64{-1, -2, 0, 0},
@@ -268,6 +262,7 @@ func Test_solution_branch(t *testing.T) {
 						gsharp:           []float64{1, 0, 0, 0},
 					},
 				},
+				integralityConstraints: []bool{true, false, false, false},
 			},
 			wantP2: subProblem{
 				c: []float64{-1, -2, 0, 0},
@@ -283,6 +278,7 @@ func Test_solution_branch(t *testing.T) {
 						gsharp:           []float64{-1, 0, 0, 0},
 					},
 				},
+				integralityConstraints: []bool{true, false, false, false},
 			},
 		},
 		{
@@ -295,6 +291,7 @@ func Test_solution_branch(t *testing.T) {
 						3, 1, 0, 1,
 					}),
 					b: []float64{4, 9},
+					integralityConstraints: []bool{true, true, false, false},
 					bnbConstraints: []bnbConstraint{
 						{
 							branchedVariable: 0,
@@ -307,9 +304,6 @@ func Test_solution_branch(t *testing.T) {
 				x: []float64{1.2, 3.8, 0, 0},
 				z: float64(-8),
 			},
-			args: args{
-				integralityConstraints: []bool{true, true, false, false},
-			},
 			wantP1: subProblem{
 				c: []float64{-1, -2, 0, 0},
 				A: mat.NewDense(2, 4, []float64{
@@ -317,6 +311,7 @@ func Test_solution_branch(t *testing.T) {
 					3, 1, 0, 1,
 				}),
 				b: []float64{4, 9},
+				integralityConstraints: []bool{true, true, false, false},
 				bnbConstraints: []bnbConstraint{
 					{
 						branchedVariable: 0,
@@ -337,6 +332,7 @@ func Test_solution_branch(t *testing.T) {
 					3, 1, 0, 1,
 				}),
 				b: []float64{4, 9},
+				integralityConstraints: []bool{true, true, false, false},
 				bnbConstraints: []bnbConstraint{
 					{
 						branchedVariable: 0,
@@ -359,7 +355,7 @@ func Test_solution_branch(t *testing.T) {
 				x:       tt.fields.x,
 				z:       tt.fields.z,
 			}
-			gotP1, gotP2 := s.branch(tt.args.integralityConstraints)
+			gotP1, gotP2 := s.branch()
 			if !reflect.DeepEqual(gotP1, tt.wantP1) {
 				t.Errorf("solution.branch() gotP1 = %v, want %v", gotP1, tt.wantP1)
 			}

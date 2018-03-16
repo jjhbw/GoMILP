@@ -80,6 +80,7 @@ func (p MILPproblem) toInitialSubProblem() subProblem {
 		b: p.b,
 		G: p.G,
 		h: p.h,
+		integralityConstraints: p.integralityConstraints,
 
 		// for the initial subproblem, there are no branch-and-bound-specific inequality constraints.
 		bnbConstraints: []bnbConstraint{},
@@ -94,6 +95,9 @@ type subProblem struct {
 	b []float64
 	G *mat.Dense
 	h []float64
+
+	// integrality constraints, inherited from parent.
+	integralityConstraints []bool
 
 	// additional inequality constraints for branch-and-bound
 	bnbConstraints []bnbConstraint
@@ -335,40 +339,10 @@ type solution struct {
 // Which variable we branch on is controlled using the variable index specified in the branchOn argument.
 // The integer value on which to branch is inferred from the parent solution.
 // e.g. if this is the first time the problem has branched: create two new problems with new constraints on variable x1, etc.
-func (s solution) branch(integralityConstraints []bool) (p1, p2 subProblem) {
+func (s solution) branch() (p1, p2 subProblem) {
 
-	// get the variable to branch on by looking at which variables we branched on previously
-	// if there are no branches yet, so we start at the first constrained variable
-	branchOn := 0
-	for i := range integralityConstraints {
-		if integralityConstraints[i] {
-			branchOn = i
-		}
-	}
-
-	// if there are branches, we cycle through the variables starting from the last one we branched on
-	// when we encounter the next variable with an integrality constraint, we pick that one to branch on.
-	if len(s.problem.bnbConstraints) > 0 {
-
-		// Get the last variable we branched.
-		lastConstraint := s.problem.bnbConstraints[len(s.problem.bnbConstraints)-1]
-		lastBranchedVariable := lastConstraint.branchedVariable
-
-		// increment this variable until we encounter the next constrained variable or we reach the end of the variable vector.
-		cursor := lastBranchedVariable
-		for {
-			if cursor == len(s.problem.c)-1 {
-				// we bring the cursor back to the beginning
-				cursor = -1
-			}
-			cursor++
-			if integralityConstraints[cursor] {
-				branchOn = cursor
-				break
-			}
-		}
-
-	}
+	// select variable to branch on
+	branchOn := s.naiveBranchPointSelection()
 
 	// Formulate the right constraints for this variable, based on its coefficient estimated by the current solution.
 	currentCoeff := s.x[branchOn]
@@ -401,6 +375,45 @@ func (p subProblem) getChild(branchOn int, factor float64, smallerOrEqualThan fl
 
 	return child
 
+}
+
+// Get the variable to branch on by looking at which variables we branched on previously.
+// If there are no branches yet, so we start at the first constrained variable.
+// Note that this is a really naive way to find a nice variable to branch on.
+func (s solution) naiveBranchPointSelection() int {
+	branchOn := 0
+
+	// if there are branches, we cycle through the variables starting from the last one we branched on
+	// when we encounter the next variable with an integrality constraint, we pick that one to branch on.
+	if len(s.problem.bnbConstraints) == 0 {
+		for i := range s.problem.integralityConstraints {
+			if s.problem.integralityConstraints[i] {
+				branchOn = i
+			}
+		}
+	} else {
+
+		// Get the last variable we branched.
+		lastConstraint := s.problem.bnbConstraints[len(s.problem.bnbConstraints)-1]
+		lastBranchedVariable := lastConstraint.branchedVariable
+
+		// increment this variable until we encounter the next constrained variable or we reach the end of the variable vector.
+		cursor := lastBranchedVariable
+		for {
+			if cursor == len(s.problem.c)-1 {
+				// we bring the cursor back to the beginning
+				cursor = -1
+			}
+			cursor++
+			if s.problem.integralityConstraints[cursor] {
+				branchOn = cursor
+				break
+			}
+		}
+
+	}
+
+	return branchOn
 }
 
 func any(in []bool) bool {
@@ -462,7 +475,7 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 	incumbent = &initialRelaxationSolution
 
 	// branch the inital relaxation and add its children to the queue
-	p1, p2 := incumbent.branch(p.integralityConstraints)
+	p1, p2 := incumbent.branch()
 	problemQueue = append(problemQueue, p1, p2)
 
 	for len(problemQueue) > 0 {
@@ -500,7 +513,7 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 			} else {
 				//candidate is an improvement over the incumbent, but not feasible.
 				//branch and add the descendants of this candidate to the queue
-				p1, p2 := candidate.branch(p.integralityConstraints)
+				p1, p2 := candidate.branch()
 				problemQueue = append(problemQueue, p1, p2)
 				step.decision = BETTER_THAN_INCUMBENT_BRANCHING
 			}
