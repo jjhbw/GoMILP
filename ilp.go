@@ -35,6 +35,34 @@ type MILPproblem struct {
 	integralityConstraints []bool
 }
 
+type MILPsolution struct {
+	decisionLog []bnbStep
+	solution    solution
+}
+
+// Branch-and-bound decisions
+// TODO: using strings only for debugging, switch to int32 for smaller memory footprint on big problems
+type bnbDecision string
+
+const (
+	SUBPROBLEM_NOT_FEASIBLE         bnbDecision = "subproblem has no feasible solution"
+	WORSE_THAN_INCUMBENT            bnbDecision = "worse than incumbent"
+	BETTER_THAN_INCUMBENT_BRANCHING bnbDecision = "better than incumbent but infeasible, so branching"
+	BETTER_THAN_INCUMBENT_FEASIBLE  bnbDecision = "better than incumbent and feasible, so replacing incumbent"
+)
+
+var (
+	INITIAL_RELAXATION_NOT_FEASIBLE = errors.New("initial relaxation is not feasible")
+	NO_INTEGER_FEASIBLE_SOLUTION    = errors.New("no integer feasible solution found")
+	PROBLEM_HAS_NO_DOF              = errors.New("(sub)problem has DOF <= 0")
+)
+
+type bnbStep struct {
+	solution         *solution
+	currentIncumbent *solution
+	decision         bnbDecision
+}
+
 func (p MILPproblem) toInitialSubProblem() subProblem {
 	return subProblem{
 		c: p.c,
@@ -224,6 +252,24 @@ func convertToEqualities(c []float64, A *mat.Dense, b []float64, G *mat.Dense, h
 	return
 }
 
+// Get the degrees of freedom of a problem
+func getDOF(c []float64, A mat.Matrix) int {
+	rows, _ := A.Dims()
+	return len(c) - rows
+}
+
+// TODO: WORKAROUND
+// wrapper around Gonum's simplex algorithm to perform a preflight check on the DOF.
+// if DOF <= 0, Simplex will panic at the BLAS level due to a bug in gonum's matrix implementation.
+// see issue https://github.com/gonum/gonum/issues/441
+func computeSimplexSimplex(c []float64, A mat.Matrix, b []float64, tol float64, initialBasic []int) (optF float64, optX []float64, err error) {
+	if getDOF(c, A) <= 0 {
+		return 0, nil, PROBLEM_HAS_NO_DOF
+	}
+
+	return lp.Simplex(c, A, b, tol, initialBasic)
+}
+
 func (p subProblem) solve() (solution, error) {
 
 	// get the inequality constraints
@@ -237,7 +283,14 @@ func (p subProblem) solve() (solution, error) {
 	if G != nil {
 		c, A, b := convertToEqualities(p.c, G, h, p.A, p.b)
 
-		z, x, err = lp.Simplex(c, A, b, 0, nil)
+		fmt.Println("c:")
+		fmt.Println(c)
+		fmt.Println("A:")
+		fmt.Println(mat.Formatted(A))
+		fmt.Println("b:")
+		fmt.Println(b)
+
+		z, x, err = computeSimplexSimplex(c, A, b, 0, nil)
 
 		// take only the non-slack variables from the result.
 		if err == nil && len(x) != len(p.c) {
@@ -245,7 +298,14 @@ func (p subProblem) solve() (solution, error) {
 		}
 
 	} else {
-		z, x, err = lp.Simplex(p.c, p.A, p.b, 0, nil)
+		fmt.Println("c:")
+		fmt.Println(p.c)
+		fmt.Println("A:")
+		fmt.Println(mat.Formatted(p.A))
+		fmt.Println("b:")
+		fmt.Println(p.b)
+
+		z, x, err = computeSimplexSimplex(p.c, p.A, p.b, 0, nil)
 	}
 
 	return solution{
@@ -456,33 +516,6 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 
 }
 
-type MILPsolution struct {
-	decisionLog []bnbStep
-	solution    solution
-}
-
-// Branch-and-bound decisions
-// TODO: using strings only for debugging, switch to int32 for smaller memory footprint on big problems
-type bnbDecision string
-
-const (
-	SUBPROBLEM_NOT_FEASIBLE         bnbDecision = "subproblem has no feasible solution"
-	WORSE_THAN_INCUMBENT            bnbDecision = "worse than incumbent"
-	BETTER_THAN_INCUMBENT_BRANCHING bnbDecision = "better than incumbent but infeasible, so branching"
-	BETTER_THAN_INCUMBENT_FEASIBLE  bnbDecision = "better than incumbent and feasible, so replacing incumbent"
-)
-
-var (
-	INITIAL_RELAXATION_NOT_FEASIBLE = errors.New("initial relaxation is not feasible")
-	NO_INTEGER_FEASIBLE_SOLUTION    = errors.New("no integer feasible solution found")
-)
-
-type bnbStep struct {
-	solution         *solution
-	currentIncumbent *solution
-	decision         bnbDecision
-}
-
 // check whether the solution vector is feasible in light of the integrality constraints for each variable
 func feasibleForIP(constraints []bool, solution []float64) bool {
 	if len(constraints) != len(solution) {
@@ -505,35 +538,4 @@ func isAllInteger(in ...float64) bool {
 		}
 	}
 	return true
-}
-
-// ExampleSimplex smoke tests the Gonum simplex lp solver and serves as an example.
-func ExampleSimplex() {
-	// standard form:
-	// 	minimize	c^T x
-	// s.t. 		A * x = b
-	// 				x >= 0 .
-
-	// this example solves the following problem:
-	// Minimize Z = -1x1 + -2x2 + 0x3 + 0x4
-	// Subject to:
-	//		-1x1 	+ 2x2 	+ 1x3 	+ 0x4 	= 4
-	//		3x1 	+ 1x2 	+ 0x3 	+ 1x4 	= 9
-
-	c := []float64{-1, -2, 0, 0}
-	A := mat.NewDense(2, 4, []float64{
-		-1, 2, 1, 0,
-		3, 1, 0, 1,
-	})
-	b := []float64{4, 9}
-
-	z, x, err := lp.Simplex(c, A, b, 0, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("opt: %v\n", z)
-	fmt.Printf("x: %v\n", x)
-	// Output:
-	// z: -8
-	// x: [2 3 0 0]
 }
