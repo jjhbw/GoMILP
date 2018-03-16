@@ -1,10 +1,12 @@
 package ilp
 
 import (
+	"fmt"
 	"testing"
 
 	"gonum.org/v1/gonum/mat"
 
+	"github.com/lukpank/go-glpk/glpk"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -208,4 +210,142 @@ func TestProblem_toSolveableC(t *testing.T) {
 
 	//Note:  do not compare pointers
 	assert.Equal(t, expected, *solveable)
+}
+
+// Convert the problem to a GLPK problem using its terrible API
+func ToGLPK(p Problem) *glpk.Prob {
+	converted := glpk.New()
+
+	converted.SetProbName("sample")
+	converted.SetObjName("Z")
+
+	if p.maximize {
+		converted.SetObjDir(glpk.MAX)
+	} else {
+		converted.SetObjDir(glpk.MIN)
+	}
+
+	// define the problem dimensions
+	converted.AddRows(len(p.equalities) + len(p.inequalities))
+	converted.AddCols(len(p.variables))
+
+	// add the variables
+	for i := 0; i < len(p.variables); i++ {
+		name := fmt.Sprintf("x%d", i)
+		colInd := i + 1
+		converted.SetColName(colInd, name)
+
+		// set the objective coeff
+		converted.SetObjCoef(colInd, p.variables[i].Coefficient)
+
+		// give all variables a lower bound of 0
+		converted.SetColBnds(colInd, glpk.LO, 0.0, 0.0)
+
+		// set integrality constraint, if any
+		if p.variables[i].Integer {
+			converted.SetColKind(colInd, glpk.IV)
+		}
+	}
+
+	// // add the equality constraints
+	for i, equality := range p.equalities {
+
+		// build the matrix row for the equality
+		equalityCoefs := []float64{0} // add a zero, see details on this weird glpk api nuance below
+		indices := []int32{0}
+		for _, exp := range equality.expressions {
+			for i, va := range p.variables {
+				if exp.variable == va {
+					indices = append(indices, int32(i)+1)
+					equalityCoefs = append(equalityCoefs, exp.coef)
+				}
+			}
+		}
+
+		eqRow := converted.AddRows(1)                              // returns the index of the added row
+		converted.SetRowName(eqRow, fmt.Sprintf("equality_%v", i)) // name the row for debugging purposes
+		converted.SetMatRow(eqRow, indices, equalityCoefs)         // NOTE: from the docs: "ind[0] and val[0] are ignored", so a leading 0 is given in both vectors."
+		converted.SetRowBnds(eqRow, glpk.FX, 0, equality.equalTo)
+	}
+
+	// // add the inequality constraints
+	for i, ineq := range p.inequalities {
+
+		// build the matrix row for the equality
+		inEqualityCoefs := []float64{0} // add a zero, see details on this weird glpk api nuance below
+		indices := []int32{0}
+
+		for _, exp := range ineq.expressions {
+			for i, va := range p.variables {
+				if exp.variable == va {
+					indices = append(indices, int32(i)+1)
+					inEqualityCoefs = append(inEqualityCoefs, exp.coef)
+				}
+			}
+		}
+		ineqRow := converted.AddRows(1)                                // returns the index of the added row
+		converted.SetRowName(ineqRow, fmt.Sprintf("inequality_%v", i)) // name the row for debugging purposes
+		converted.SetMatRow(ineqRow, indices, inEqualityCoefs)         // NOTE: from the docs: "ind[0] and val[0] are ignored", so a leading 0 is given in both vectors."
+		converted.SetRowBnds(ineqRow, glpk.FX, 0, ineq.smallerThan)
+	}
+
+	return converted
+}
+
+func TestCompareWithGLPK(t *testing.T) {
+	// build an abstract Problem
+	prob := NewProblem()
+
+	// add the variables
+	v1 := prob.AddVariable(-1, false)
+	v2 := prob.AddVariable(-2, true)
+	v3 := prob.AddVariable(1, true)
+
+	// add the equality constraints
+	prob.AddEquality([]expression{
+		expression{
+			coef:     1,
+			variable: v1,
+		},
+	},
+		5,
+	)
+	prob.AddEquality([]expression{
+		expression{
+			coef:     3,
+			variable: v2,
+		},
+	},
+		2,
+	)
+	prob.AddEquality([]expression{
+		expression{
+			coef:     1,
+			variable: v3,
+		},
+	},
+		2,
+	)
+
+	// set the problem to maximize
+	prob.Maximize()
+
+	glpkProblem := ToGLPK(prob)
+
+	// solve the problem with the integer solver
+	iocp := glpk.NewIocp()
+	iocp.SetPresolve(true)
+	solveError := glpkProblem.Intopt(iocp)
+	if solveError != nil {
+		t.Error(solveError)
+	}
+
+	// parse the solutions
+	fmt.Printf("%s = %g", glpkProblem.ObjName(), glpkProblem.ObjVal())
+	for i := 0; i < 3; i++ {
+		fmt.Printf("; %s = %g", glpkProblem.ColName(i+1), glpkProblem.ColPrim(i+1))
+	}
+	fmt.Println()
+
+	t.Fail()
 }

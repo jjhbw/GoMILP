@@ -9,6 +9,7 @@ import (
 	"gonum.org/v1/gonum/optimize/convex/lp"
 )
 
+// TODO: how to deal with matrix degeneracy in subproblems?
 // TODO: add more in-depth MILP test cases with known solutions for the BNB routine. Maybe compare using GLPK Go bindings?
 // TODO: in branched subproblems: intiate simplex at solution of parent? (using argument of lp.Simplex)
 // TODO: does fiddling with the simplex tolerance value improve outcomes?
