@@ -3,20 +3,22 @@ package ilp
 import (
 	"errors"
 	"fmt"
-	"log"
 	"math"
 
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize/convex/lp"
 )
 
-// TODO: fix the 'unbounded problem' issue originating from usage of the lp.Convert() function.
+// TODO: add more in-depth tests for the BNB routine: should properly find integer solutions.
 // TODO: allow for MAXimization problems, perhaps with a nice method-chaining API.
 // TODO: in branched subproblems: intiate simplex at solution of parent? (using argument of lp.Simplex)
 // TODO: try to formulate more advanced constraints, like sets of values instead of just integrality.
 // Note that having integer sets as constraints is basically the same as having an integrality constraint + a <= and >= bound.
 // Branching on this type of constraint can be optimized in a neat way (i.e. x>=0, x<=1, x<=0 ~-> x = 0)
 // TODO: visualising the enumeration tree?
+// TODO: current calculation of DOF is more of a workaround around a gonum mat bug than a good calculation of DOF
+// as it does not take into account whether the constraint equations are linearly independent.
+// TODO: The used branching heuristic (selects a variable to branch on) is extremely dumb. Improve!
 
 type MILPproblem struct {
 	// 	minimize c^T * x
@@ -45,6 +47,7 @@ type MILPsolution struct {
 type bnbDecision string
 
 const (
+	SUBPROBLEM_NO_DOF               bnbDecision = "subproblem has no degrees of freedom"
 	SUBPROBLEM_NOT_FEASIBLE         bnbDecision = "subproblem has no feasible solution"
 	WORSE_THAN_INCUMBENT            bnbDecision = "worse than incumbent"
 	BETTER_THAN_INCUMBENT_BRANCHING bnbDecision = "better than incumbent but infeasible, so branching"
@@ -55,6 +58,15 @@ var (
 	INITIAL_RELAXATION_NOT_FEASIBLE = errors.New("initial relaxation is not feasible")
 	NO_INTEGER_FEASIBLE_SOLUTION    = errors.New("no integer feasible solution found")
 	PROBLEM_HAS_NO_DOF              = errors.New("(sub)problem has DOF <= 0")
+)
+
+var (
+	// problem-specific reasons why simplex-solving a problem can fail
+	// these errors are expeced in a sense, do not warrant a panic, correspond to their respective bnbDecision.
+	expectedFailures = map[error]bnbDecision{
+		NO_INTEGER_FEASIBLE_SOLUTION: SUBPROBLEM_NOT_FEASIBLE,
+		PROBLEM_HAS_NO_DOF:           SUBPROBLEM_NO_DOF,
+	}
 )
 
 type bnbStep struct {
@@ -184,7 +196,6 @@ func sanityCheckDimensions(c []float64, A *mat.Dense, b []float64, G *mat.Dense,
 	return nil
 }
 
-// TODO: can be combined to a more generic lp.Convert()-like function. Currently requires checking for valid inputs beforehand.
 // Convert a problem with inequalities (G and h) to a problem with only nonnegative equalities using slack variables
 func convertToEqualities(c []float64, A *mat.Dense, b []float64, G *mat.Dense, h []float64) (cNew []float64, aNew *mat.Dense, bNew []float64) {
 
@@ -283,12 +294,12 @@ func (p subProblem) solve() (solution, error) {
 	if G != nil {
 		c, A, b := convertToEqualities(p.c, G, h, p.A, p.b)
 
-		fmt.Println("c:")
-		fmt.Println(c)
-		fmt.Println("A:")
-		fmt.Println(mat.Formatted(A))
-		fmt.Println("b:")
-		fmt.Println(b)
+		// fmt.Println("c:")
+		// fmt.Println(c)
+		// fmt.Println("A:")
+		// fmt.Println(mat.Formatted(A))
+		// fmt.Println("b:")
+		// fmt.Println(b)
 
 		z, x, err = computeSimplexSimplex(c, A, b, 0, nil)
 
@@ -298,12 +309,12 @@ func (p subProblem) solve() (solution, error) {
 		}
 
 	} else {
-		fmt.Println("c:")
-		fmt.Println(p.c)
-		fmt.Println("A:")
-		fmt.Println(mat.Formatted(p.A))
-		fmt.Println("b:")
-		fmt.Println(p.b)
+		// fmt.Println("c:")
+		// fmt.Println(p.c)
+		// fmt.Println("A:")
+		// fmt.Println(mat.Formatted(p.A))
+		// fmt.Println("b:")
+		// fmt.Println(p.b)
 
 		z, x, err = computeSimplexSimplex(p.c, p.A, p.b, 0, nil)
 	}
@@ -322,7 +333,6 @@ type solution struct {
 	z       float64
 }
 
-//TODO: This branching heuristic (selects a variable to branch on) is extremely dumb. Improve!
 // branch the solution into two subproblems that have an added constraint on a particular variable in a particular direction.
 // Which variable we branch on is controlled using the variable index specified in the branchOn argument.
 // The integer value on which to branch is inferred from the parent solution.
@@ -404,8 +414,18 @@ func any(in []bool) bool {
 	return false
 }
 
-// TODO: any logging for the tree visualisation should be done at the highest possible level. i.e. in this method
-// TODO: better handling of errors
+// takes a solver failure and determines whether it warrants a panic or whether it is expected.
+func translateSolverFailure(err error) bnbDecision {
+	if err == lp.ErrInfeasible {
+		return SUBPROBLEM_NOT_FEASIBLE
+	}
+	for failure, decision := range expectedFailures {
+		if failure == err {
+			return decision
+		}
+	}
+	panic(err)
+}
 
 func (p MILPproblem) Solve() (MILPsolution, error) {
 
@@ -466,15 +486,8 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 		switch {
 
 		case err != nil:
-			// check if the subproblem was not feasible
-			if err == lp.ErrInfeasible {
-				step.decision = SUBPROBLEM_NOT_FEASIBLE
-			} else {
-				// any other error
-				//TODO: clean this up
-				fmt.Println(candidate.problem)
-				panic(err)
-			}
+			failure := translateSolverFailure(err)
+			step.decision = failure
 
 		// Note that the objective is a minimization.
 		case incumbent.z <= candidate.z:
