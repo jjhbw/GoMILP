@@ -16,14 +16,14 @@ func TestProblem_checkExpression(t *testing.T) {
 	prob := NewProblem()
 	v := prob.AddVariable(1, false)
 
-	expr1 := expression{
+	expr1 := Expression{
 		variable: v,
 		coef:     2,
 	}
 	assert.True(t, prob.checkExpression(expr1))
 
 	// an expression with a new variable not declared in the problem
-	expr2 := expression{
+	expr2 := Expression{
 		variable: &Variable{Coefficient: 1, Integer: false},
 		coef:     1,
 	}
@@ -44,24 +44,24 @@ func TestProblem_toSolveableA(t *testing.T) {
 	v4 := prob.AddVariable(3, false)
 
 	// add the equality constraints
-	prob.AddEquality([]expression{
-		expression{
+	prob.AddEquality([]Expression{
+		Expression{
 			coef:     1,
 			variable: v1,
 		},
 	},
 		5,
 	)
-	prob.AddEquality([]expression{
-		expression{
+	prob.AddEquality([]Expression{
+		Expression{
 			coef:     3,
 			variable: v2,
 		},
 	},
 		2,
 	)
-	prob.AddEquality([]expression{
-		expression{
+	prob.AddEquality([]Expression{
+		Expression{
 			coef:     1,
 			variable: v3,
 		},
@@ -70,8 +70,8 @@ func TestProblem_toSolveableA(t *testing.T) {
 	)
 
 	// add the inequality
-	prob.AddInEquality([]expression{
-		expression{
+	prob.AddInEquality([]Expression{
+		Expression{
 			coef:     1,
 			variable: v4,
 		},
@@ -111,24 +111,24 @@ func TestProblem_toSolveableB(t *testing.T) {
 	v3 := prob.AddVariable(1, true)
 
 	// add the equality constraints
-	prob.AddEquality([]expression{
-		expression{
+	prob.AddEquality([]Expression{
+		Expression{
 			coef:     1,
 			variable: v1,
 		},
 	},
 		5,
 	)
-	prob.AddEquality([]expression{
-		expression{
+	prob.AddEquality([]Expression{
+		Expression{
 			coef:     3,
 			variable: v2,
 		},
 	},
 		2,
 	)
-	prob.AddEquality([]expression{
-		expression{
+	prob.AddEquality([]Expression{
+		Expression{
 			coef:     1,
 			variable: v3,
 		},
@@ -166,24 +166,24 @@ func TestProblem_toSolveableC(t *testing.T) {
 	v3 := prob.AddVariable(1, true)
 
 	// add the equality constraints
-	prob.AddEquality([]expression{
-		expression{
+	prob.AddEquality([]Expression{
+		Expression{
 			coef:     1,
 			variable: v1,
 		},
 	},
 		5,
 	)
-	prob.AddEquality([]expression{
-		expression{
+	prob.AddEquality([]Expression{
+		Expression{
 			coef:     3,
 			variable: v2,
 		},
 	},
 		2,
 	)
-	prob.AddEquality([]expression{
-		expression{
+	prob.AddEquality([]Expression{
+		Expression{
 			coef:     1,
 			variable: v3,
 		},
@@ -302,24 +302,24 @@ func TestCompareWithGLPK(t *testing.T) {
 	v3 := prob.AddVariable(1, true)
 
 	// add the equality constraints
-	prob.AddEquality([]expression{
-		expression{
+	prob.AddEquality([]Expression{
+		Expression{
 			coef:     1,
 			variable: v1,
 		},
 	},
 		5,
 	)
-	prob.AddEquality([]expression{
-		expression{
+	prob.AddEquality([]Expression{
+		Expression{
 			coef:     3,
 			variable: v2,
 		},
 	},
 		2,
 	)
-	prob.AddEquality([]expression{
-		expression{
+	prob.AddEquality([]Expression{
+		Expression{
 			coef:     1,
 			variable: v3,
 		},

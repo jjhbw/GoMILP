@@ -35,9 +35,9 @@ type Variable struct {
 	Integer bool
 }
 
-// an expression of a variable and an arbitrary float for use in defining constraints
+// an Expression of a variable and an arbitrary float for use in defining constraints
 // e.g. "-1 * x1"
-type expression struct {
+type Expression struct {
 	coef     float64
 	variable *Variable
 }
@@ -45,7 +45,7 @@ type expression struct {
 // An abstraction representing an inequality constraint.
 type Inequality struct {
 	// expressions will be summed together to form the LHS of ...
-	expressions []expression
+	expressions []Expression
 
 	// ... a constraint with a certain RHS
 	smallerThan float64
@@ -54,7 +54,7 @@ type Inequality struct {
 // An abstraction representing an equality constraint.
 type Equality struct {
 	// expressions will be summed together to form the LHS of ...
-	expressions []expression
+	expressions []Expression
 
 	// ... a constraint with a certain RHS
 	equalTo float64
@@ -79,7 +79,7 @@ func (p *Problem) AddVariable(coef float64, integer bool) *Variable {
 }
 
 // Add an Equality constraint to the problem, given a set of expressions that must equal equalTo.
-func (p *Problem) AddEquality(expr []expression, equalTo float64) {
+func (p *Problem) AddEquality(expr []Expression, equalTo float64) {
 	if len(expr) == 0 {
 		panic("must add expressions")
 	}
@@ -98,7 +98,7 @@ func (p *Problem) AddEquality(expr []expression, equalTo float64) {
 }
 
 // Add an InEquality constraint to the problem, given a set of expressions that must be less than smallerThan.
-func (p *Problem) AddInEquality(expr []expression, smallerThan float64) {
+func (p *Problem) AddInEquality(expr []Expression, smallerThan float64) {
 	if len(expr) == 0 {
 		panic("must add expressions")
 	}
@@ -129,7 +129,7 @@ func (p *Problem) BranchingHeuristic(choice BranchHeuristic) {
 }
 
 // Check whether the expression is legal considering the variables currently present in the problem
-func (p *Problem) checkExpression(e expression) bool {
+func (p *Problem) checkExpression(e Expression) bool {
 
 	// check whether the pointer to the variable provided is currently included in the Problem
 	for _, v := range p.variables {
