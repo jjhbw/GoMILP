@@ -293,7 +293,7 @@ func (p subProblem) solve() (solution, error) {
 
 	// if inequality constraints are presented, amend the problem with these.
 	if G != nil {
-		c, A, b := convertToEqualities(p.c, G, h, p.A, p.b)
+		c, A, b := convertToEqualities(p.c, p.A, p.b, G, h)
 
 		// fmt.Println("c:")
 		// fmt.Println(c)
