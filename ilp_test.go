@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"gonum.org/v1/gonum/mat"
@@ -571,13 +570,16 @@ func TestRandomized(t *testing.T) {
 	rnd := rand.New(rand.NewSource(1))
 
 	// some small problems
-	testRandom(t, 100, 0, 10, rnd)
+	testRandomMILP(t, 100, 0, 10, rnd)
+
+	// some small problems with some zeros
+	testRandomMILP(t, 100, 0.1, 10, rnd)
 
 	// larger problems
-	testRandom(t, 100, 0, 100, rnd)
+	testRandomMILP(t, 100, 0, 100, rnd)
 }
 
-func testRandom(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.Rand) {
+func testRandomMILP(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.Rand) {
 	// Try a bunch of random LPs
 	for i := 0; i < nTest; i++ {
 		n := rnd.Intn(maxN) + 2 // n must be at least two.
@@ -639,7 +641,7 @@ func getRandomMILP(pZero float64, m, n int, rnd *rand.Rand) *MILPproblem {
 		h[i] = randValue()
 	}
 
-	boolgenerator := NewBoolGen()
+	boolgenerator := NewBoolGen(rnd)
 
 	var integralityConstraints []bool
 	for i := 0; i < len(c); i++ {
@@ -665,8 +667,8 @@ type boolgen struct {
 	remaining int
 }
 
-func NewBoolGen() *boolgen {
-	return &boolgen{src: rand.NewSource(time.Now().UnixNano())}
+func NewBoolGen(rnd rand.Source) *boolgen {
+	return &boolgen{src: rnd}
 }
 
 func (b *boolgen) Bool() bool {

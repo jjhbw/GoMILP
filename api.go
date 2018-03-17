@@ -12,6 +12,7 @@ import (
 // TODO: make CLI and Problem serialization format for easy integration with R/python-based analysis tooling for debugging of mathematical properties.
 // TODO: explore options regarding branch-and-bound parallelism. See also computation of (pseudo-)costs and expensive branching heuristics.
 // TODO: make solver cancellable with a context by spinning the actual solving off into a goroutine.
+// TODO: add check for when adding a constraint: check whether an expression containing that variable already exists.
 
 // The abstract MILP problem representation
 type Problem struct {
@@ -144,7 +145,7 @@ func (p *Problem) checkExpression(e Expression) bool {
 }
 
 // Convert the abstract problem representation to its concrete numerical representation.
-func (p *Problem) toSolveable() *MILPproblem {
+func (p *Problem) ToSolveable() *MILPproblem {
 	// TODO: sanity checks before converting
 
 	// get the c vector containing the coefficients of the variables in the objective function

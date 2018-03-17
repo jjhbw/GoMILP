@@ -2,6 +2,7 @@ package ilp
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
 
 	"gonum.org/v1/gonum/mat"
@@ -29,187 +30,6 @@ func TestProblem_checkExpression(t *testing.T) {
 	}
 	assert.False(t, prob.checkExpression(expr2))
 
-}
-
-// a simple minimization (the default) case with one inequality and no integrality constraints
-func TestProblem_toSolveableA(t *testing.T) {
-
-	// build an abstract Problem
-	prob := NewProblem()
-
-	// add the variables
-	v1 := prob.AddVariable(-1, false)
-	v2 := prob.AddVariable(-2, false)
-	v3 := prob.AddVariable(1, false)
-	v4 := prob.AddVariable(3, false)
-
-	// add the equality constraints
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v1,
-		},
-	},
-		5,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     3,
-			variable: v2,
-		},
-	},
-		2,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v3,
-		},
-	},
-		2,
-	)
-
-	// add the inequality
-	prob.AddInEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v4,
-		},
-	},
-		2,
-	)
-
-	solveable := prob.toSolveable()
-	expected := MILPproblem{
-		c: []float64{-1, -2, 1, 3},
-		A: mat.NewDense(3, 4, []float64{
-			1, 0, 0, 0,
-			0, 3, 0, 0,
-			0, 0, 1, 0,
-		}),
-		b: []float64{5, 2, 2},
-		G: mat.NewDense(1, 4, []float64{
-			0, 0, 0, 1,
-		}),
-		h: []float64{2},
-		integralityConstraints: []bool{false, false, false, false},
-	}
-
-	//Note:  do not compare pointers
-	assert.Equal(t, expected, *solveable)
-}
-
-// A minimization: no inequalities and 2 integrality constraints
-func TestProblem_toSolveableB(t *testing.T) {
-
-	// build an abstract Problem
-	prob := NewProblem()
-
-	// add the variables
-	v1 := prob.AddVariable(-1, false)
-	v2 := prob.AddVariable(-2, true)
-	v3 := prob.AddVariable(1, true)
-
-	// add the equality constraints
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v1,
-		},
-	},
-		5,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     3,
-			variable: v2,
-		},
-	},
-		2,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v3,
-		},
-	},
-		2,
-	)
-
-	solveable := prob.toSolveable()
-	expected := MILPproblem{
-		c: []float64{-1, -2, 1},
-		A: mat.NewDense(3, 3, []float64{
-			1, 0, 0,
-			0, 3, 0,
-			0, 0, 1,
-		}),
-		b: []float64{5, 2, 2},
-		G: nil,
-		h: nil,
-		integralityConstraints: []bool{false, true, true},
-	}
-
-	//Note:  do not compare pointers
-	assert.Equal(t, expected, *solveable)
-}
-
-// A maximization: no inequalities and 2 integrality constraints
-func TestProblem_toSolveableC(t *testing.T) {
-
-	// build an abstract Problem
-	prob := NewProblem()
-
-	// add the variables
-	v1 := prob.AddVariable(-1, false)
-	v2 := prob.AddVariable(-2, true)
-	v3 := prob.AddVariable(1, true)
-
-	// add the equality constraints
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v1,
-		},
-	},
-		5,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     3,
-			variable: v2,
-		},
-	},
-		2,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v3,
-		},
-	},
-		2,
-	)
-
-	// set the problem to maximize
-	prob.Maximize()
-
-	solveable := prob.toSolveable()
-	expected := MILPproblem{
-		c: []float64{1, 2, -1},
-		A: mat.NewDense(3, 3, []float64{
-			1, 0, 0,
-			0, 3, 0,
-			0, 0, 1,
-		}),
-		b: []float64{5, 2, 2},
-		G: nil,
-		h: nil,
-		integralityConstraints: []bool{false, true, true},
-	}
-
-	//Note:  do not compare pointers
-	assert.Equal(t, expected, *solveable)
 }
 
 // Convert the problem to a GLPK problem using its terrible API
@@ -292,7 +112,8 @@ func ToGLPK(p Problem) *glpk.Prob {
 	return converted
 }
 
-func TestCompareWithGLPK(t *testing.T) {
+//TODO: assert that the conversion to a GLPK problem yields the expected results.
+func TestManualCompareWithGLPK(t *testing.T) {
 	// build an abstract Problem
 	prob := NewProblem()
 
@@ -317,7 +138,7 @@ func TestCompareWithGLPK(t *testing.T) {
 	prob.Minimize()
 
 	// solve the problem using our own code
-	solution, err := prob.toSolveable().Solve()
+	solution, err := prob.ToSolveable().Solve()
 	if err != nil {
 		t.Error(err)
 	}
@@ -346,4 +167,106 @@ func TestCompareWithGLPK(t *testing.T) {
 	fmt.Println()
 
 	t.Fail()
+}
+
+// adapted from Gonum's lp.Simplex.
+func getRandomProblem(pZero float64, m, n int, rnd *rand.Rand) Problem {
+
+	if m == 0 || n == 0 {
+		panic("m==n not allowed")
+	}
+	randValue := func() float64 {
+		//var pZero float64
+		v := rnd.Float64()
+		if v < pZero {
+			return 0
+		}
+		return rnd.NormFloat64()
+	}
+
+	boolgenerator := NewBoolGen(rnd)
+	prob := NewProblem()
+
+	var vars []*Variable
+
+	// add variables
+	for i := 0; i < m; i++ {
+		v := prob.AddVariable(randValue(), boolgenerator.Bool())
+		vars = append(vars, v)
+	}
+
+	for _, v := range vars {
+		// add (at least) one constraint for each variable
+		exprs := []Expression{Expression{randValue(), v}}
+
+		// TODO: more complex constraint matrices
+		// for j := 0; j < m; j++ {
+		// 	if boolgenerator.Bool() && boolgenerator.Bool() {
+		// 		exprs = append(exprs, Expression{randValue(), v})
+		// 	}
+		// }
+
+		// roll the dice on whether it will become an equality or inequality
+		if boolgenerator.Bool() {
+			prob.AddEquality(exprs, randValue())
+		} else {
+			prob.AddInEquality(exprs, randValue())
+		}
+
+	}
+
+	return prob
+}
+
+// Compare a bunch of random MILPs with the GLPK output
+func TestAutoCompareWithGLPK(t *testing.T) {
+	rnd := rand.New(rand.NewSource(155))
+
+	prob := getRandomProblem(-10, 6, 4, rnd)
+	milp := prob.ToSolveable()
+
+	for i, eq := range prob.equalities {
+		fmt.Println("eq", i)
+		for _, exp := range eq.expressions {
+			fmt.Println(exp)
+		}
+
+	}
+
+	fmt.Println("c:")
+	fmt.Println(milp.c)
+	fmt.Println("integrality:")
+	fmt.Println(milp.integralityConstraints)
+	fmt.Println("A:")
+	fmt.Println(mat.Formatted(milp.A))
+	fmt.Println("b:")
+	fmt.Println(milp.b)
+	fmt.Println("G:")
+	fmt.Println(mat.Formatted(milp.G))
+	fmt.Println("h:")
+	fmt.Println(milp.h)
+
+	t.Error()
+}
+
+//TODO: compare to GLPK output
+func testRandomProb(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.Rand) {
+	// Try a bunch of random LPs
+	for i := 0; i < nTest; i++ {
+		n := rnd.Intn(maxN) + 2 // n must be at least two.
+		m := rnd.Intn(n-1) + 1  // m must be between 1 and n
+		prob := getRandomProblem(pZero, m, n, rnd)
+
+		milp := prob.ToSolveable()
+
+		fmt.Println("c:")
+		fmt.Println(milp.c)
+		fmt.Println("A:")
+		fmt.Println(mat.Formatted(milp.A))
+		fmt.Println("b:")
+		fmt.Println(milp.b)
+		solution, err := milp.Solve()
+
+		fmt.Println(solution.solution.x, solution.solution.z, err)
+	}
 }
