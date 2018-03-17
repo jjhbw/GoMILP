@@ -2,18 +2,17 @@
 
 A work in progress.
 
-Makes use of the brilliant Gonum library.
+# Scope
 
-
+MILP solver with a simple interface. Speed is not yet a concern.
 
 # Dependencies
 
-Managed using [Go dep](https://github.com/golang/dep).
+Go dependencies are managed using [Go dep](https://github.com/golang/dep). See `Gopkg.lock` and `Gopkg.toml`.
 
-See `Gopkg.lock` and `Gopkg.toml`.
+For testing, solutions to randomized MILPs are compared to solutions produced by the GNU Linear Programming Kit, using its [Go bindings](https://github.com/lukpank/go-glpk).
+
+To install `libglpk` on macOs, simply run `brew install glpk`.
 
 
 
-# Scope
-
-Simple interface to a MILP solver. Speed is not yet a concern.

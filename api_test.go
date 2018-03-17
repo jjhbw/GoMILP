@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 
 	"github.com/lukpank/go-glpk/glpk"
@@ -112,7 +113,7 @@ func ToGLPK(p Problem) *glpk.Prob {
 	return converted
 }
 
-//TODO: assert that the conversion to a GLPK problem yields the expected results.
+// Compare solver outcomes of a specific problem with those of GLPK
 func TestManualCompareWithGLPK(t *testing.T) {
 	// build an abstract Problem
 	prob := NewProblem()
@@ -149,7 +150,7 @@ func TestManualCompareWithGLPK(t *testing.T) {
 	glpkProblem := ToGLPK(prob)
 
 	// save the problem for debugging purposes
-	glpkProblem.WriteLP(nil, "test.lp")
+	// glpkProblem.WriteLP(nil, "test.lp")
 
 	// solve the problem with the integer solver
 	iocp := glpk.NewIocp()
@@ -159,14 +160,9 @@ func TestManualCompareWithGLPK(t *testing.T) {
 		t.Error(solveError)
 	}
 
-	// parse the solutions
-	fmt.Printf("%s = %g", glpkProblem.ObjName(), glpkProblem.ObjVal())
-	for i := 0; i < 3; i++ {
-		fmt.Printf("; %s = %g", glpkProblem.ColName(i+1), glpkProblem.MipColVal(i+1))
-	}
-	fmt.Println()
+	// parse the solutions and compare outcomes
+	equalSolutions(t, glpkProblem, &solution, &prob, 0.005)
 
-	t.Fail()
 }
 
 // adapted from Gonum's lp.Simplex.
@@ -218,39 +214,48 @@ func getRandomProblem(pZero float64, m, n int, rnd *rand.Rand) Problem {
 	return prob
 }
 
+// // TODO: temporary test for visual debugging
+// func TestTMP_GLPK(t *testing.T) {
+// 	rnd := rand.New(rand.NewSource(155))
+
+// 	prob := getRandomProblem(-10, 6, 4, rnd)
+// 	milp := prob.ToSolveable()
+
+// 	for i, eq := range prob.equalities {
+// 		fmt.Println("eq", i)
+// 		for _, exp := range eq.expressions {
+// 			fmt.Println(exp)
+// 		}
+
+// 	}
+
+// 	fmt.Println("c:")
+// 	fmt.Println(milp.c)
+// 	fmt.Println("integrality:")
+// 	fmt.Println(milp.integralityConstraints)
+// 	fmt.Println("A:")
+// 	fmt.Println(mat.Formatted(milp.A))
+// 	fmt.Println("b:")
+// 	fmt.Println(milp.b)
+// 	fmt.Println("G:")
+// 	fmt.Println(mat.Formatted(milp.G))
+// 	fmt.Println("h:")
+// 	fmt.Println(milp.h)
+
+// 	// TODO: remove this test
+// 	t.Error()
+// }
+
 // Compare a bunch of random MILPs with the GLPK output
-func TestAutoCompareWithGLPK(t *testing.T) {
+func TestAutoCompare(t *testing.T) {
 	rnd := rand.New(rand.NewSource(155))
 
-	prob := getRandomProblem(-10, 6, 4, rnd)
-	milp := prob.ToSolveable()
+	testRandomProbCompareWithGLPK(t, 100, 0, 10, rnd)
 
-	for i, eq := range prob.equalities {
-		fmt.Println("eq", i)
-		for _, exp := range eq.expressions {
-			fmt.Println(exp)
-		}
-
-	}
-
-	fmt.Println("c:")
-	fmt.Println(milp.c)
-	fmt.Println("integrality:")
-	fmt.Println(milp.integralityConstraints)
-	fmt.Println("A:")
-	fmt.Println(mat.Formatted(milp.A))
-	fmt.Println("b:")
-	fmt.Println(milp.b)
-	fmt.Println("G:")
-	fmt.Println(mat.Formatted(milp.G))
-	fmt.Println("h:")
-	fmt.Println(milp.h)
-
-	t.Error()
 }
 
-//TODO: compare to GLPK output
-func testRandomProb(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.Rand) {
+// compare random MILPs solved with own solver to GLPK output
+func testRandomProbCompareWithGLPK(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.Rand) {
 	// Try a bunch of random LPs
 	for i := 0; i < nTest; i++ {
 		n := rnd.Intn(maxN) + 2 // n must be at least two.
@@ -259,14 +264,75 @@ func testRandomProb(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.
 
 		milp := prob.ToSolveable()
 
+		// debugging information
+		t.Log("---Running test number ", i+1)
+		fmt.Println("---Test number ", i+1)
+		fmt.Println("Dimensions of own problem:")
 		fmt.Println("c:")
 		fmt.Println(milp.c)
 		fmt.Println("A:")
 		fmt.Println(mat.Formatted(milp.A))
 		fmt.Println("b:")
 		fmt.Println(milp.b)
-		solution, err := milp.Solve()
+		fmt.Println("G:")
+		fmt.Println(mat.Formatted(milp.G))
+		fmt.Println("h:")
+		fmt.Println(milp.h)
 
-		fmt.Println(solution.solution.x, solution.solution.z, err)
+		// convert the problem to GLPK
+		glpkProblem := ToGLPK(prob)
+		defer glpkProblem.Delete() // we need to manually free up memory of GLPK's CGO implementation
+
+		// solve the problem with our own solver
+		solution, ownErr := milp.Solve()
+		fmt.Println("own solution:")
+		fmt.Println(solution.solution.x, solution.solution.z, ownErr)
+
+		// Solve GLPK problem with the integer solver
+		iocp := glpk.NewIocp()
+		iocp.SetPresolve(true)
+		GLPKerror := glpkProblem.Intopt(iocp)
+
+		// compare errors of both solver outputs
+		tol := 0.005 // numberical tolerance
+		if ownErr != nil {
+			if GLPKerror != nil {
+				//TODO: compare error messages
+				t.Log("Both solvers returned errors: ")
+				t.Log("GLPK: ", GLPKerror)
+				t.Log("Our own: ", ownErr)
+				// bothInfeasible := (glpkProblem.Status() == glpk.INFEAS && ownErr == INITIAL_RELAXATION_NOT_FEASIBLE)
+				// if !bothInfeasible {
+				// 	t.Errorf("Errors of both solvers not comparable: GLPKerror = %s vs. own error: %s", GLPKerror, ownErr)
+				// 	t.Fail()
+				// }
+			} else {
+				t.Error("only own solver returned error: ", ownErr)
+			}
+		} else {
+			if equalSolutions(t, glpkProblem, &solution, &prob, tol) {
+				t.Log("Solutions of GLPK and own solver are equal within the provided tolerance of", tol)
+			}
+		}
+
 	}
+}
+
+func equalSolutions(t *testing.T, glpkProblem *glpk.Prob, solution *MILPsolution, originalProblem *Problem, tolerance float64) bool {
+	// parse the solutions and compare outcomes
+	glpkObjectiveVal := glpkProblem.MipObjVal()
+	if !floats.EqualWithinAbs(solution.solution.z, glpkObjectiveVal, tolerance) {
+		t.Errorf("Objective function outcome not equal. Own: %g vs. GLPK: %g", solution.solution.z, glpkObjectiveVal)
+		return false
+	}
+	for i := 0; i < len(originalProblem.variables); i++ {
+
+		// Check if each solution is equal within a fixed tolerance
+		if !floats.EqualWithinAbs(solution.solution.x[i], glpkProblem.MipColVal(i+1), tolerance) {
+			t.Errorf("Decision variable x%v values not equal. Own: %g vs. GLPK: %g", i, solution.solution.x[i], glpkProblem.MipColVal(i+1))
+			return false
+		}
+	}
+
+	return true
 }

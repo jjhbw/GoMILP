@@ -326,3 +326,78 @@ func TestProblem_toSolveableE(t *testing.T) {
 	//Note:  do not compare pointers
 	assert.Equal(t, expected, *solveable)
 }
+
+// ONLY inequality constraints
+func TestProblem_toSolveableF(t *testing.T) {
+
+	// build an abstract Problem
+	prob := NewProblem()
+
+	// add the variables
+	v1 := prob.AddVariable(-1, false)
+	v2 := prob.AddVariable(-2, true)
+	v3 := prob.AddVariable(1, true)
+
+	// add the equality constraints
+	prob.AddInEquality([]Expression{
+		Expression{
+			coef:     1,
+			variable: v1,
+		},
+		Expression{
+			coef:     1,
+			variable: v2,
+		},
+	},
+		5,
+	)
+	prob.AddInEquality([]Expression{
+		Expression{
+			coef:     3,
+			variable: v2,
+		},
+	},
+		2,
+	)
+	prob.AddInEquality([]Expression{
+		Expression{
+			coef:     1,
+			variable: v3,
+		},
+	},
+		2,
+	)
+	prob.AddInEquality([]Expression{
+		Expression{
+			coef:     1,
+			variable: v3,
+		},
+		Expression{
+			coef:     1,
+			variable: v1,
+		},
+	},
+		2,
+	)
+
+	// set the problem to maximize
+	prob.Maximize()
+
+	solveable := prob.ToSolveable()
+	expected := MILPproblem{
+		c: []float64{1, 2, -1},
+		A: nil,
+		b: nil,
+		G: mat.NewDense(4, 3, []float64{
+			1, 1, 0,
+			0, 3, 0,
+			0, 0, 1,
+			1, 0, 1,
+		}),
+		h: []float64{5, 2, 2, 2},
+		integralityConstraints: []bool{false, true, true},
+	}
+
+	//Note:  do not compare pointers
+	assert.Equal(t, expected, *solveable)
+}

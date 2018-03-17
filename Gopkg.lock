@@ -8,6 +8,12 @@
   version = "v1.1.0"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/lukpank/go-glpk"
+  packages = ["glpk"]
+  revision = "2e64496cbbfa5e6ee79b8fee5ae69e4a848b1425"
+
+[[projects]]
   name = "github.com/pmezard/go-difflib"
   packages = ["difflib"]
   revision = "792786c7400a136282c1664665ae0a8db921c6c2"
@@ -28,6 +34,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "7285853b7e610be5e73f3f3e02eb0ad3838d362d18f9bb0aa6de440fc9a24932"
+  inputs-digest = "65d3f55150d25e379d0bb4ec69915aa10b9757f6ffe2351e17e14bd63768b5d4"
   solver-name = "gps-cdcl"
   solver-version = 1

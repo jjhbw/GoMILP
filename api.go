@@ -13,6 +13,8 @@ import (
 // TODO: explore options regarding branch-and-bound parallelism. See also computation of (pseudo-)costs and expensive branching heuristics.
 // TODO: make solver cancellable with a context by spinning the actual solving off into a goroutine.
 // TODO: add check for when adding a constraint: check whether an expression containing that variable already exists.
+// TODO: write benchmarks for time and space usage
+// TODO: small(?) performance gains may be made by switching dense matrix datastructures over to sparse for big problems
 
 // The abstract MILP problem representation
 type Problem struct {
@@ -188,7 +190,10 @@ func (p *Problem) ToSolveable() *MILPproblem {
 	}
 
 	// combine the Adata vector into a matrix
-	A := mat.NewDense(len(p.equalities), len(p.variables), Adata)
+	var A *mat.Dense
+	if len(p.equalities) > 0 {
+		A = mat.NewDense(len(p.equalities), len(p.variables), Adata)
+	}
 
 	// get the inequality constraints
 	var h []float64

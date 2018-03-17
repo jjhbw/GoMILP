@@ -9,9 +9,9 @@ import (
 	"gonum.org/v1/gonum/optimize/convex/lp"
 )
 
-// TODO: primal vs dual simplex?
-// TODO: how to deal with matrix degeneracy in subproblems?
-// TODO: add more in-depth MILP test cases with known solutions for the BNB routine. Maybe compare using GLPK Go bindings?
+// TODO: add more diverse MILP test cases with known solutions for the BNB routine.
+// TODO: primal vs dual simplex; any benefit?
+// TODO: how to deal with matrix degeneracy in subproblems? Currently handled the same way as infeasible subproblems.
 // TODO: in branched subproblems: intiate simplex at solution of parent? (using argument of lp.Simplex)
 // TODO: does fiddling with the simplex tolerance value improve outcomes?
 // TODO: visualising the enumeration tree?
@@ -30,9 +30,6 @@ type MILPproblem struct {
 	c []float64
 	A *mat.Dense
 	b []float64
-
-	// additional inequality constraints:  G * x <= h
-	// optional, may both be nil
 	G *mat.Dense
 	h []float64
 
@@ -176,6 +173,11 @@ func (p subProblem) getInequalities() (*mat.Dense, []float64) {
 
 // Sanity check for the problems dimensions
 func sanityCheckDimensions(c []float64, A *mat.Dense, b []float64, G *mat.Dense, h []float64) error {
+	// Either G or A needs to be provided
+	if G == nil && A == nil {
+		return errors.New("No constraint matrices provided")
+	}
+
 	if G != nil {
 		if h == nil {
 			return errors.New("h vector is nil while G matrix is provided")
@@ -197,13 +199,21 @@ func sanityCheckDimensions(c []float64, A *mat.Dense, b []float64, G *mat.Dense,
 		}
 	}
 
-	rA, cA := A.Dims()
-	if rA != len(b) {
-		return errors.New("Number of rows in A matrix is not equal to length of b")
+	if A != nil {
+		rA, cA := A.Dims()
+		if rA != len(b) {
+			return errors.New("Number of rows in A matrix is not equal to length of b")
+		}
+
+		if cA != len(c) {
+			return errors.New("Number of columns in A matrix is not equal to number of variables")
+		}
 	}
 
-	if cA != len(c) {
-		return errors.New("Number of columns in A matrix is not equal to number of variables")
+	if b != nil {
+		if A == nil {
+			return errors.New("A matrix is nil while b vector is provided")
+		}
 	}
 
 	return nil
@@ -213,10 +223,8 @@ func sanityCheckDimensions(c []float64, A *mat.Dense, b []float64, G *mat.Dense,
 func convertToEqualities(c []float64, A *mat.Dense, b []float64, G *mat.Dense, h []float64) (cNew []float64, aNew *mat.Dense, bNew []float64) {
 
 	//sanity checks
-	if A == nil {
-		panic("Provided pointer to A matrix is nil")
-	}
-
+	// A may be nil (if it is, we can initiate a new one),
+	// but as this function's explicit purpose is converting inequalities, G may not be nil.
 	if G == nil {
 		panic("Provided pointer to G matrix is nil")
 	}
@@ -255,8 +263,10 @@ func convertToEqualities(c []float64, A *mat.Dense, b []float64, G *mat.Dense, h
 	// construct the new A matrix
 	aNew = mat.NewDense(nNewCons, nNewVar, nil)
 
-	// embed the original A matrix in the top left part of aNew, thus setting the original constraints
-	aNew.Slice(0, nCons, 0, nVar).(*mat.Dense).Copy(A)
+	// if A is not nil, embed the original A matrix in the top left part of aNew, thus setting the original constraints
+	if A != nil {
+		aNew.Slice(0, nCons, 0, nVar).(*mat.Dense).Copy(A)
+	}
 
 	// embed the G matrix into the new A, below the view of the old A.
 	aNew.Slice(nCons, nNewCons, 0, nVar).(*mat.Dense).Copy(G)
@@ -295,13 +305,6 @@ func (p subProblem) solve() (solution, error) {
 	if G != nil {
 		c, A, b := convertToEqualities(p.c, p.A, p.b, G, h)
 
-		// fmt.Println("c:")
-		// fmt.Println(c)
-		// fmt.Println("A:")
-		// fmt.Println(mat.Formatted(A))
-		// fmt.Println("b:")
-		// fmt.Println(b)
-
 		z, x, err = lp.Simplex(c, A, b, 0, nil)
 
 		// take only the non-slack variables from the result.
@@ -310,13 +313,6 @@ func (p subProblem) solve() (solution, error) {
 		}
 
 	} else {
-		// fmt.Println("c:")
-		// fmt.Println(p.c)
-		// fmt.Println("A:")
-		// fmt.Println(mat.Formatted(p.A))
-		// fmt.Println("b:")
-		// fmt.Println(p.b)
-
 		z, x, err = lp.Simplex(p.c, p.A, p.b, 0, nil)
 	}
 
