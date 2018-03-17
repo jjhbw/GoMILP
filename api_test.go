@@ -265,19 +265,10 @@ func testRandomProbCompareWithGLPK(t *testing.T, nTest int, pZero float64, maxN 
 		milp := prob.ToSolveable()
 
 		// debugging information
-		t.Log("---Running test number ", i+1)
+		// t.Log("---Running test number ", i+1)
 		fmt.Println("---Test number ", i+1)
-		fmt.Println("Dimensions of own problem:")
-		fmt.Println("c:")
-		fmt.Println(milp.c)
-		fmt.Println("A:")
-		fmt.Println(mat.Formatted(milp.A))
-		fmt.Println("b:")
-		fmt.Println(milp.b)
-		fmt.Println("G:")
-		fmt.Println(mat.Formatted(milp.G))
-		fmt.Println("h:")
-		fmt.Println(milp.h)
+
+		summarizeProblem(milp)
 
 		// convert the problem to GLPK
 		glpkProblem := ToGLPK(prob)
@@ -297,25 +288,71 @@ func testRandomProbCompareWithGLPK(t *testing.T, nTest int, pZero float64, maxN 
 		tol := 0.005 // numberical tolerance
 		if ownErr != nil {
 			if GLPKerror != nil {
-				//TODO: compare error messages
-				t.Log("Both solvers returned errors: ")
-				t.Log("GLPK: ", GLPKerror)
-				t.Log("Our own: ", ownErr)
-				// bothInfeasible := (glpkProblem.Status() == glpk.INFEAS && ownErr == INITIAL_RELAXATION_NOT_FEASIBLE)
-				// if !bothInfeasible {
-				// 	t.Errorf("Errors of both solvers not comparable: GLPKerror = %s vs. own error: %s", GLPKerror, ownErr)
-				// 	t.Fail()
-				// }
+				//TODO: compare error messages. If equal: all is well.
+				if !equalErrors(t, GLPKerror, glpkProblem, ownErr) {
+					dumpDiagnostics(t, milp, "Errors of both solvers are NOT comparable: GLPKerror = %s vs. own error: %s", GLPKerror, ownErr)
+
+				}
 			} else {
-				t.Error("only own solver returned error: ", ownErr)
+				dumpDiagnostics(t, milp, "only our own solver returned error: ", ownErr)
 			}
 		} else {
-			if equalSolutions(t, glpkProblem, &solution, &prob, tol) {
-				t.Log("Solutions of GLPK and own solver are equal within the provided tolerance of", tol)
-			}
+			equalSolutions(t, glpkProblem, &solution, &prob, tol)
+
 		}
 
 	}
+}
+
+func dumpDiagnostics(t *testing.T, milp *MILPproblem, message string, args ...interface{}) {
+	t.Errorf(message, args...)
+	summarizeProblem(milp)
+}
+
+func summarizeProblem(milp *MILPproblem) {
+	fmt.Println("Dimensions of own problem:")
+	fmt.Println("c:")
+	fmt.Println(milp.c)
+	if milp.G != nil {
+		fmt.Println("A:")
+
+		fmt.Println(mat.Formatted(milp.A))
+	} else {
+		fmt.Println("A matrix is nil")
+	}
+	fmt.Println("b:")
+	fmt.Println(milp.b)
+
+	if milp.G != nil {
+		fmt.Println("G:")
+
+		fmt.Println(mat.Formatted(milp.G))
+	} else {
+		fmt.Println("G matrix is nil")
+	}
+
+	fmt.Println("h:")
+	fmt.Println(milp.h)
+}
+
+func equalErrors(t *testing.T, glpkError error, glpkProblem *glpk.Prob, ownError error) bool {
+	// okmsg := "Errors of both solvers are comparable: GLPKerror = %s vs. own error: %s"
+	glpkStatus := glpkProblem.Status()
+	glpkInfeasible := glpkStatus == glpk.INFEAS || glpkStatus == glpk.NOFEAS
+	ownInfeasible := ownError == NO_INTEGER_FEASIBLE_SOLUTION
+	if glpkInfeasible && ownInfeasible {
+		// t.Logf(okmsg, glpkError, ownError)
+		return true
+	}
+
+	if ownError == INITIAL_RELAXATION_NOT_FEASIBLE && glpkError == glpk.ENOPFS {
+		// t.Logf(okmsg, glpkError, ownError)
+		return true
+	}
+
+	// t.Logf("Errors of both solvers are NOT comparable: GLPKerror = %s vs. own error: %s", glpkError, ownError)
+
+	return false
 }
 
 func equalSolutions(t *testing.T, glpkProblem *glpk.Prob, solution *MILPsolution, originalProblem *Problem, tolerance float64) bool {
