@@ -14,14 +14,14 @@ func TestProblem_checkExpression(t *testing.T) {
 	prob := NewProblem()
 	v := prob.AddVariable("v1").SetCoeff(1)
 
-	expr1 := Expression{
+	expr1 := expression{
 		variable: v,
 		coef:     2,
 	}
 	assert.True(t, prob.checkExpression(expr1))
 
 	// an expression with a new variable not declared in the problem
-	expr2 := Expression{
+	expr2 := expression{
 		variable: &Variable{coefficient: 1, integer: false},
 		coef:     1,
 	}
@@ -60,20 +60,20 @@ func getRandomProblem(pZero float64, m, n int, rnd *rand.Rand) Problem {
 
 	for _, v := range vars {
 		// add (at least) one constraint for each variable
-		exprs := []Expression{Expression{randValue(), v}}
 
 		// TODO: more complex constraint matrices
 		// for j := 0; j < m; j++ {
 		// 	if boolgenerator.Bool() && boolgenerator.Bool() {
-		// 		exprs = append(exprs, Expression{randValue(), v})
+		// 		exprs = append(exprs, expression{randValue(), v})
 		// 	}
 		// }
 
 		// roll the dice on whether it will become an equality or inequality
+		con := prob.AddConstraint().AddExpression(randValue(), v)
 		if boolgenerator.Bool() {
-			prob.AddEquality(exprs, randValue())
+			con.EqualTo(randValue())
 		} else {
-			prob.AddInEquality(exprs, randValue())
+			con.SmallerThanOrEqualTo(randValue())
 		}
 
 	}

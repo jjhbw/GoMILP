@@ -26,9 +26,8 @@ type Problem struct {
 	maximize bool
 
 	// the problem structure
-	variables    []*Variable
-	inequalities []Inequality
-	equalities   []Equality
+	variables   []*Variable
+	constraints []*Constraint
 
 	// the branching heuristic to use for branch-and-bound (defaults to 0 == maxFun)
 	branchingHeuristic BranchHeuristic
@@ -50,29 +49,25 @@ type Variable struct {
 	lower float64
 }
 
-// an Expression of a variable and an arbitrary float for use in defining constraints
+// an expression of a variable and an arbitrary float for use in defining constraints
 // e.g. "-1 * x1"
-type Expression struct {
+type expression struct {
 	coef     float64
 	variable *Variable
 }
 
-// An abstraction representing an inequality constraint.
-type Inequality struct {
-	// expressions will be summed together to form the LHS of ...
-	expressions []Expression
+type Constraint struct {
+	// these expressions will be summed together to form the left-hand-side of the constraint
+	expressions []expression
 
-	// ... a constraint with a certain RHS
-	smallerThan float64
-}
+	// right-hand-side of the
+	rhs float64
 
-// An abstraction representing an equality constraint.
-type Equality struct {
-	// expressions will be summed together to form the LHS of ...
-	expressions []Expression
+	// an equality constraint by default
+	inequality bool
 
-	// ... a constraint with a certain RHS
-	equalTo float64
+	// store a reference to the problem
+	problem *Problem
 }
 
 // Initiate a new MILP problem abstraction
@@ -120,42 +115,35 @@ func (v *Variable) LowerBound(bound float64) *Variable {
 	return v
 }
 
-// Add an Equality constraint to the problem, given a set of expressions that must equal equalTo.
-func (p *Problem) AddEquality(expr []Expression, equalTo float64) {
-	if len(expr) == 0 {
-		panic("must add expressions")
+func (p *Problem) AddConstraint() *Constraint {
+	c := &Constraint{
+		problem: p,
 	}
+	p.constraints = append(p.constraints, c)
 
-	for _, e := range expr {
-		if !p.checkExpression(e) {
-			panic("provided expression contains a variable that has not been declared to this problem yet")
-		}
-	}
-
-	p.equalities = append(p.equalities, Equality{
-		expressions: expr,
-		equalTo:     equalTo,
-	})
-
+	return c
 }
 
-// Add an InEquality constraint to the problem, given a set of expressions that must be less than smallerThan.
-func (p *Problem) AddInEquality(expr []Expression, smallerThan float64) {
-	if len(expr) == 0 {
-		panic("must add expressions")
-	}
+func (p *Constraint) EqualTo(val float64) *Constraint {
+	p.inequality = false
+	p.rhs = val
+	return p
+}
 
-	for _, e := range expr {
-		if !p.checkExpression(e) {
-			panic("provided expression contains a variable that has not been declared to this problem yet")
-		}
-	}
+func (p *Constraint) SmallerThanOrEqualTo(val float64) *Constraint {
+	p.inequality = true
+	p.rhs = val
+	return p
+}
 
-	p.inequalities = append(p.inequalities, Inequality{
-		expressions: expr,
-		smallerThan: smallerThan,
-	})
+func (c *Constraint) AddExpression(coef float64, v *Variable) *Constraint {
+	// check if the provided variable has been declared in this problem. If not, this call will panic
+	c.problem.getVariableIndex(v)
 
+	exp := expression{coef: coef, variable: v}
+
+	c.expressions = append(c.expressions, exp)
+	return c
 }
 
 func (p *Problem) Maximize() {
@@ -171,7 +159,7 @@ func (p *Problem) BranchingHeuristic(choice BranchHeuristic) {
 }
 
 // Check whether the expression is legal considering the variables currently present in the problem
-func (p *Problem) checkExpression(e Expression) bool {
+func (p *Problem) checkExpression(e expression) bool {
 
 	// check whether the pointer to the variable provided is currently included in the Problem
 	for _, v := range p.variables {
@@ -195,7 +183,7 @@ func (p *Problem) getVariableIndex(v *Variable) int {
 }
 
 // Convert the abstract problem representation to its concrete numerical representation.
-func (p *Problem) ToSolveable() *MILPproblem {
+func (p *Problem) toSolveable() *MILPproblem {
 
 	// get the c vector containing the coefficients of the variables in the objective function
 	// simultaneously parse the integrality constraints
@@ -214,48 +202,38 @@ func (p *Problem) ToSolveable() *MILPproblem {
 		integrality = append(integrality, v.integer)
 	}
 
-	// add the equality constraints specified as []Expression
+	/// parse the constraints
 	var b []float64
 	var Adata []float64
-	for _, equality := range p.equalities {
+	var h []float64
+	var Gdata []float64
+	for _, constraint := range p.constraints {
 
 		// build the matrix row for the equality
-		equalityRow := make([]float64, len(p.variables))
+		indexRow := make([]float64, len(p.variables))
 
-		for _, exp := range equality.expressions {
+		for _, exp := range constraint.expressions {
 			i := p.getVariableIndex(exp.variable)
-			equalityRow[i] = exp.coef
+			indexRow[i] = exp.coef
 		}
 
-		Adata = append(Adata, equalityRow...)
+		if constraint.inequality {
+			Gdata = append(Gdata, indexRow...)
 
-		// add the RHS of the equality to the b vector
-		b = append(b, equality.equalTo)
+			// add the RHS of the inequality to the h vector
+			h = append(h, constraint.rhs)
+		} else {
+			Adata = append(Adata, indexRow...)
+			// add the RHS of the equality to the b vector
+			b = append(b, constraint.rhs)
+		}
+
 	}
 
 	// combine the Adata vector into a matrix
 	var A *mat.Dense
-	if len(p.equalities) > 0 {
-		A = mat.NewDense(len(p.equalities), len(p.variables), Adata)
-	}
-
-	// add the inequality constraints specified as []Expression
-	var h []float64
-	var Gdata []float64
-
-	for _, inEquality := range p.inequalities {
-		inEqualityRow := make([]float64, len(p.variables))
-
-		for _, exp := range inEquality.expressions {
-			i := p.getVariableIndex(exp.variable)
-			inEqualityRow[i] = exp.coef
-		}
-
-		Gdata = append(Gdata, inEqualityRow...)
-
-		// add the RHS of the inequality to the h vector
-		h = append(h, inEquality.smallerThan)
-
+	if len(b) > 0 {
+		A = mat.NewDense(len(b), len(p.variables), Adata)
 	}
 
 	// add the variable bounds as inequality constraints

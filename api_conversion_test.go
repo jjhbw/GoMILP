@@ -21,42 +21,12 @@ func TestProblem_toSolveableA(t *testing.T) {
 	v4 := prob.AddVariable("v4").SetCoeff(3)
 
 	// add the equality constraints
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v1,
-		},
-	},
-		5,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     3,
-			variable: v2,
-		},
-	},
-		2,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v3,
-		},
-	},
-		2,
-	)
+	prob.AddConstraint().AddExpression(1, v1).EqualTo(5)
+	prob.AddConstraint().AddExpression(3, v2).EqualTo(2)
+	prob.AddConstraint().AddExpression(1, v3).EqualTo(2)
+	prob.AddConstraint().AddExpression(1, v4).SmallerThanOrEqualTo(2)
 
-	// add the inequality
-	prob.AddInEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v4,
-		},
-	},
-		2,
-	)
-
-	solveable := prob.ToSolveable()
+	solveable := prob.toSolveable()
 	expected := MILPproblem{
 		c: []float64{-1, -2, 1, 3},
 		A: mat.NewDense(3, 4, []float64{
@@ -88,32 +58,11 @@ func TestProblem_toSolveableB(t *testing.T) {
 	v3 := prob.AddVariable("v3").IsInteger().SetCoeff(1)
 
 	// add the equality constraints
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v1,
-		},
-	},
-		5,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     3,
-			variable: v2,
-		},
-	},
-		2,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v3,
-		},
-	},
-		2,
-	)
+	prob.AddConstraint().AddExpression(1, v1).EqualTo(5)
+	prob.AddConstraint().AddExpression(3, v2).EqualTo(2)
+	prob.AddConstraint().AddExpression(1, v3).EqualTo(2)
 
-	solveable := prob.ToSolveable()
+	solveable := prob.toSolveable()
 	expected := MILPproblem{
 		c: []float64{-1, -2, 1},
 		A: mat.NewDense(3, 3, []float64{
@@ -143,35 +92,14 @@ func TestProblem_toSolveableC(t *testing.T) {
 	v3 := prob.AddVariable("v3").SetCoeff(1).IsInteger()
 
 	// add the equality constraints
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v1,
-		},
-	},
-		5,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     3,
-			variable: v2,
-		},
-	},
-		2,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v3,
-		},
-	},
-		2,
-	)
+	prob.AddConstraint().AddExpression(1, v1).EqualTo(5)
+	prob.AddConstraint().AddExpression(3, v2).EqualTo(2)
+	prob.AddConstraint().AddExpression(1, v3).EqualTo(2)
 
 	// set the problem to maximize
 	prob.Maximize()
 
-	solveable := prob.ToSolveable()
+	solveable := prob.toSolveable()
 	expected := MILPproblem{
 		c: []float64{1, 2, -1},
 		A: mat.NewDense(3, 3, []float64{
@@ -201,39 +129,14 @@ func TestProblem_toSolveableD(t *testing.T) {
 	v3 := prob.AddVariable("v3").SetCoeff(1).IsInteger()
 
 	// add the equality constraints
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v1,
-		},
-		Expression{
-			coef:     1,
-			variable: v2,
-		},
-	},
-		5,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     3,
-			variable: v2,
-		},
-	},
-		2,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v3,
-		},
-	},
-		2,
-	)
+	prob.AddConstraint().AddExpression(1, v1).AddExpression(1, v2).EqualTo(5)
+	prob.AddConstraint().AddExpression(3, v2).EqualTo(2)
+	prob.AddConstraint().AddExpression(1, v3).EqualTo(2)
 
 	// set the problem to maximize
 	prob.Maximize()
 
-	solveable := prob.ToSolveable()
+	solveable := prob.toSolveable()
 	expected := MILPproblem{
 		c: []float64{1, 2, -1},
 		A: mat.NewDense(3, 3, []float64{
@@ -263,51 +166,15 @@ func TestProblem_toSolveableE(t *testing.T) {
 	v3 := prob.AddVariable("v3").SetCoeff(1).IsInteger()
 
 	// add the equality constraints
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v1,
-		},
-		Expression{
-			coef:     1,
-			variable: v2,
-		},
-	},
-		5,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     3,
-			variable: v2,
-		},
-	},
-		2,
-	)
-	prob.AddEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v3,
-		},
-	},
-		2,
-	)
-	prob.AddInEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v3,
-		},
-		Expression{
-			coef:     1,
-			variable: v1,
-		},
-	},
-		2,
-	)
+	prob.AddConstraint().AddExpression(1, v1).AddExpression(1, v2).EqualTo(5)
+	prob.AddConstraint().AddExpression(3, v2).EqualTo(2)
+	prob.AddConstraint().AddExpression(1, v3).EqualTo(2)
+	prob.AddConstraint().AddExpression(1, v3).AddExpression(1, v1).SmallerThanOrEqualTo(2)
 
 	// set the problem to maximize
 	prob.Maximize()
 
-	solveable := prob.ToSolveable()
+	solveable := prob.toSolveable()
 	expected := MILPproblem{
 		c: []float64{1, 2, -1},
 		A: mat.NewDense(3, 3, []float64{
@@ -339,51 +206,15 @@ func TestProblem_toSolveableF(t *testing.T) {
 	v3 := prob.AddVariable("v3").SetCoeff(1).IsInteger()
 
 	// add the equality constraints
-	prob.AddInEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v1,
-		},
-		Expression{
-			coef:     1,
-			variable: v2,
-		},
-	},
-		5,
-	)
-	prob.AddInEquality([]Expression{
-		Expression{
-			coef:     3,
-			variable: v2,
-		},
-	},
-		2,
-	)
-	prob.AddInEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v3,
-		},
-	},
-		2,
-	)
-	prob.AddInEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v3,
-		},
-		Expression{
-			coef:     1,
-			variable: v1,
-		},
-	},
-		2,
-	)
+	prob.AddConstraint().AddExpression(1, v1).AddExpression(1, v2).SmallerThanOrEqualTo(5)
+	prob.AddConstraint().AddExpression(3, v2).SmallerThanOrEqualTo(2)
+	prob.AddConstraint().AddExpression(1, v3).SmallerThanOrEqualTo(2)
+	prob.AddConstraint().AddExpression(1, v3).AddExpression(1, v1).SmallerThanOrEqualTo(2)
 
 	// set the problem to maximize
 	prob.Maximize()
 
-	solveable := prob.ToSolveable()
+	solveable := prob.toSolveable()
 	expected := MILPproblem{
 		c: []float64{1, 2, -1},
 		A: nil,
@@ -414,51 +245,15 @@ func TestProblem_toSolveableG(t *testing.T) {
 	v3 := prob.AddVariable("v3").SetCoeff(1).IsInteger().LowerBound(1)
 
 	// add the equality constraints
-	prob.AddInEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v1,
-		},
-		Expression{
-			coef:     1,
-			variable: v2,
-		},
-	},
-		5,
-	)
-	prob.AddInEquality([]Expression{
-		Expression{
-			coef:     3,
-			variable: v2,
-		},
-	},
-		2,
-	)
-	prob.AddInEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v3,
-		},
-	},
-		2,
-	)
-	prob.AddInEquality([]Expression{
-		Expression{
-			coef:     1,
-			variable: v3,
-		},
-		Expression{
-			coef:     1,
-			variable: v1,
-		},
-	},
-		2,
-	)
+	prob.AddConstraint().AddExpression(1, v1).AddExpression(1, v2).SmallerThanOrEqualTo(5)
+	prob.AddConstraint().AddExpression(3, v2).SmallerThanOrEqualTo(2)
+	prob.AddConstraint().AddExpression(1, v3).SmallerThanOrEqualTo(2)
+	prob.AddConstraint().AddExpression(1, v3).AddExpression(1, v1).SmallerThanOrEqualTo(2)
 
 	// set the problem to maximize
 	prob.Maximize()
 
-	solveable := prob.ToSolveable()
+	solveable := prob.toSolveable()
 	expected := MILPproblem{
 		c: []float64{1, 2, -1},
 		A: nil,
