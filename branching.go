@@ -6,9 +6,9 @@ import "math"
 type BranchHeuristic int
 
 const (
-	BRANCH_MAXFUN     BranchHeuristic = 0
-	BRANCH_FRACTIONAL BranchHeuristic = 1
-	BRANCH_NAIVE      BranchHeuristic = 2
+	BRANCH_MAXFUN          BranchHeuristic = 0
+	BRANCH_MOST_INFEASIBLE BranchHeuristic = 1
+	BRANCH_NAIVE           BranchHeuristic = 2
 )
 
 // Get the variable to branch on by looking at which variables we branched on previously.
@@ -72,7 +72,7 @@ func maxFunBranchPoint(c []float64, integralityConstraints []bool) int {
 }
 
 // Choose the variable with the fractional part closest to 1/2.
-func closestFractionalBranchPoint(c []float64, integralityConstraints []bool) int {
+func mostInfeasibleBranchPoint(c []float64, integralityConstraints []bool) int {
 	if len(c) != len(integralityConstraints) {
 		panic("number of variables not equal to number of integrality constraints")
 	}

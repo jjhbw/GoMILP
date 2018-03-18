@@ -157,7 +157,7 @@ func Test_closestFractionalBranchPoint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := closestFractionalBranchPoint(tt.args.c, tt.args.integralityConstraints); got != tt.want {
+			if got := mostInfeasibleBranchPoint(tt.args.c, tt.args.integralityConstraints); got != tt.want {
 				t.Errorf("closestFractionalBranchPoint() = %v, want %v", got, tt.want)
 			}
 		})

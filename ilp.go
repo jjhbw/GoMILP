@@ -15,10 +15,8 @@ import (
 // TODO: in branched subproblems: intiate simplex at solution of parent? (using argument of lp.Simplex)
 // TODO: does fiddling with the simplex tolerance value improve outcomes?
 // TODO: visualising the enumeration tree?
-// TODO: current calculation of DOF is more of a workaround around a gonum mat bug than a good calculation of DOF
-// as it does not take into account whether the constraint equations are linearly independent.
 // TODO: Currently implemented only the simplest branching heuristics. Room for improvement.
-// TODO: if branching yields an infeasible or otherwise unsolveable problem, try with another branching heuristic or use the second-best option.
+// TODO: ? if branching yields an infeasible or otherwise unsolveable problem, try with another branching heuristic or use the second-best option.
 // TODO: also fun: linear program preprocessing (MATLAB docs: https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html#btv20av)
 // TODO: Queue is currently FIFO. For depth-first exploration, we should go with a LIFO queue.
 // TODO: Add heuristic determining which node gets explored first (as we are using depth-first search) https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html?s_tid=gn_loc_drop#btzwtmv
@@ -342,8 +340,8 @@ func (s solution) branch() (p1, p2 subProblem) {
 	case BRANCH_MAXFUN:
 		branchOn = maxFunBranchPoint(s.problem.c, s.problem.integralityConstraints)
 
-	case BRANCH_FRACTIONAL:
-		branchOn = closestFractionalBranchPoint(s.problem.c, s.problem.integralityConstraints)
+	case BRANCH_MOST_INFEASIBLE:
+		branchOn = mostInfeasibleBranchPoint(s.problem.c, s.problem.integralityConstraints)
 
 	case BRANCH_NAIVE:
 		branchOn = s.naiveBranchPoint()
