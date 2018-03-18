@@ -566,40 +566,6 @@ func TestMILPproblem_Solve(t *testing.T) {
 	}
 }
 
-// a test case returning an unexpected unbounded error
-func TestMILPproblem_Solve_Regression_Unbounded(t *testing.T) {
-
-	prob := MILPproblem{
-		c: []float64{-1.0663057423699058},
-		integralityConstraints: []bool{false},
-		A:                  nil,
-		b:                  nil,
-		G:                  mat.NewDense(1, 1, []float64{-1.0408389531666868}),
-		h:                  []float64{-1.3724848653579445},
-		branchingHeuristic: 0,
-	}
-
-	sol, err := prob.Solve()
-	assert.NoError(t, err)
-	t.Log(sol)
-
-}
-
-// directly using Simplex: a test case returning an unexpected unbounded error
-func TestLpSimplexUnbounded(t *testing.T) {
-	z, x, err := lp.Simplex(
-		[]float64{-1.0663057423699058, 0},
-		mat.NewDense(1, 2, []float64{-1.0408389531666868, 1}),
-		[]float64{-1.3724848653579445},
-		0,
-		nil,
-	)
-
-	assert.NoError(t, err)
-	t.Log("obj:", z)
-	t.Log("x: ", x)
-}
-
 func TestRandomized(t *testing.T) {
 	rnd := rand.New(rand.NewSource(1))
 

@@ -9,6 +9,7 @@ import (
 	"gonum.org/v1/gonum/optimize/convex/lp"
 )
 
+// TODO: Current storage of each node's decision is a potential GC nightmare.
 // TODO: add more diverse MILP test cases with known solutions for the BNB routine.
 // TODO: primal vs dual simplex; any benefit?
 // TODO: how to deal with matrix degeneracy in subproblems? Currently handled the same way as infeasible subproblems.
@@ -310,8 +311,32 @@ func (p subProblem) solve() (solution, error) {
 			x = x[:len(p.c)]
 		}
 
+		//TODO: removeme
+		// if err == lp.ErrUnbounded {
+		// 	fmt.Println("UNBOUNDED- with inequalities")
+		// 	fmt.Println("c:")
+		// 	fmt.Println(c)
+		// 	fmt.Println("A:")
+		// 	fmt.Println(mat.Formatted(A))
+		// 	fmt.Println("b:")
+		// 	fmt.Println(b)
+		// 	// fmt.Println("h:")
+		// 	// fmt.Println(h)
+		// }
+
 	} else {
 		z, x, err = lp.Simplex(p.c, p.A, p.b, 0, nil)
+
+		//TODO: removeme
+		// if err == lp.ErrUnbounded {
+		// 	fmt.Println("UNBOUNDED")
+		// 	fmt.Println("c:")
+		// 	fmt.Println(p.c)
+		// 	fmt.Println("A:")
+		// 	fmt.Println(mat.Formatted(p.A))
+		// 	fmt.Println("b:")
+		// 	fmt.Println(p.b)
+		// }
 	}
 
 	return solution{
