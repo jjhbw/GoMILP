@@ -36,13 +36,13 @@ func ToGLPK(p Problem) *glpk.Prob {
 		converted.SetColName(colInd, name)
 
 		// set the objective coeff
-		converted.SetObjCoef(colInd, p.variables[i].Coefficient)
+		converted.SetObjCoef(colInd, p.variables[i].coefficient)
 
 		// give all variables a lower bound of 0
 		converted.SetColBnds(colInd, glpk.LO, 0.0, 0.0)
 
 		// set integrality constraint, if any
-		if p.variables[i].Integer {
+		if p.variables[i].integer {
 			converted.SetColKind(colInd, glpk.IV)
 		}
 	}
@@ -98,9 +98,9 @@ func TestManualCompareWithGLPK(t *testing.T) {
 	prob := NewProblem()
 
 	// add the variables
-	v1 := prob.AddVariable(-1, false)
-	v2 := prob.AddVariable(-2, false)
-	v3 := prob.AddVariable(0, true)
+	v1 := prob.AddVariable("v1").SetCoeff(-1)
+	v2 := prob.AddVariable("v2").SetCoeff(-2)
+	v3 := prob.AddVariable("v3").SetCoeff(0).IsInteger()
 
 	// add the equality constraints
 	prob.AddEquality([]Expression{

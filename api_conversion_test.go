@@ -15,10 +15,10 @@ func TestProblem_toSolveableA(t *testing.T) {
 	prob := NewProblem()
 
 	// add the variables
-	v1 := prob.AddVariable(-1, false)
-	v2 := prob.AddVariable(-2, false)
-	v3 := prob.AddVariable(1, false)
-	v4 := prob.AddVariable(3, false)
+	v1 := prob.AddVariable("v1").SetCoeff(-1)
+	v2 := prob.AddVariable("v2").SetCoeff(-2)
+	v3 := prob.AddVariable("v3").SetCoeff(1)
+	v4 := prob.AddVariable("v4").SetCoeff(3)
 
 	// add the equality constraints
 	prob.AddEquality([]Expression{
@@ -83,9 +83,9 @@ func TestProblem_toSolveableB(t *testing.T) {
 	prob := NewProblem()
 
 	// add the variables
-	v1 := prob.AddVariable(-1, false)
-	v2 := prob.AddVariable(-2, true)
-	v3 := prob.AddVariable(1, true)
+	v1 := prob.AddVariable("v1").SetCoeff(-1)
+	v2 := prob.AddVariable("v2").IsInteger().SetCoeff(-2)
+	v3 := prob.AddVariable("v3").IsInteger().SetCoeff(1)
 
 	// add the equality constraints
 	prob.AddEquality([]Expression{
@@ -138,9 +138,9 @@ func TestProblem_toSolveableC(t *testing.T) {
 	prob := NewProblem()
 
 	// add the variables
-	v1 := prob.AddVariable(-1, false)
-	v2 := prob.AddVariable(-2, true)
-	v3 := prob.AddVariable(1, true)
+	v1 := prob.AddVariable("v1").SetCoeff(-1)
+	v2 := prob.AddVariable("v2").SetCoeff(-2).IsInteger()
+	v3 := prob.AddVariable("v3").SetCoeff(1).IsInteger()
 
 	// add the equality constraints
 	prob.AddEquality([]Expression{
@@ -196,9 +196,9 @@ func TestProblem_toSolveableD(t *testing.T) {
 	prob := NewProblem()
 
 	// add the variables
-	v1 := prob.AddVariable(-1, false)
-	v2 := prob.AddVariable(-2, true)
-	v3 := prob.AddVariable(1, true)
+	v1 := prob.AddVariable("v1").SetCoeff(-1)
+	v2 := prob.AddVariable("v2").SetCoeff(-2).IsInteger()
+	v3 := prob.AddVariable("v3").SetCoeff(1).IsInteger()
 
 	// add the equality constraints
 	prob.AddEquality([]Expression{
@@ -258,9 +258,9 @@ func TestProblem_toSolveableE(t *testing.T) {
 	prob := NewProblem()
 
 	// add the variables
-	v1 := prob.AddVariable(-1, false)
-	v2 := prob.AddVariable(-2, true)
-	v3 := prob.AddVariable(1, true)
+	v1 := prob.AddVariable("v1").SetCoeff(-1)
+	v2 := prob.AddVariable("v2").SetCoeff(-2).IsInteger()
+	v3 := prob.AddVariable("v3").SetCoeff(1).IsInteger()
 
 	// add the equality constraints
 	prob.AddEquality([]Expression{
@@ -334,9 +334,9 @@ func TestProblem_toSolveableF(t *testing.T) {
 	prob := NewProblem()
 
 	// add the variables
-	v1 := prob.AddVariable(-1, false)
-	v2 := prob.AddVariable(-2, true)
-	v3 := prob.AddVariable(1, true)
+	v1 := prob.AddVariable("v1").SetCoeff(-1)
+	v2 := prob.AddVariable("v2").SetCoeff(-2).IsInteger()
+	v3 := prob.AddVariable("v3").SetCoeff(1).IsInteger()
 
 	// add the equality constraints
 	prob.AddInEquality([]Expression{
@@ -395,6 +395,86 @@ func TestProblem_toSolveableF(t *testing.T) {
 			1, 0, 1,
 		}),
 		h: []float64{5, 2, 2, 2},
+		integralityConstraints: []bool{false, true, true},
+	}
+
+	//Note:  do not compare pointers
+	assert.Equal(t, expected, *solveable)
+}
+
+// With upper and lower bounds on some variables
+func TestProblem_toSolveableG(t *testing.T) {
+
+	// build an abstract Problem
+	prob := NewProblem()
+
+	// add the variables
+	v1 := prob.AddVariable("v1").SetCoeff(-1).UpperBound(4).LowerBound(2)
+	v2 := prob.AddVariable("v2").SetCoeff(-2).IsInteger()
+	v3 := prob.AddVariable("v3").SetCoeff(1).IsInteger().LowerBound(1)
+
+	// add the equality constraints
+	prob.AddInEquality([]Expression{
+		Expression{
+			coef:     1,
+			variable: v1,
+		},
+		Expression{
+			coef:     1,
+			variable: v2,
+		},
+	},
+		5,
+	)
+	prob.AddInEquality([]Expression{
+		Expression{
+			coef:     3,
+			variable: v2,
+		},
+	},
+		2,
+	)
+	prob.AddInEquality([]Expression{
+		Expression{
+			coef:     1,
+			variable: v3,
+		},
+	},
+		2,
+	)
+	prob.AddInEquality([]Expression{
+		Expression{
+			coef:     1,
+			variable: v3,
+		},
+		Expression{
+			coef:     1,
+			variable: v1,
+		},
+	},
+		2,
+	)
+
+	// set the problem to maximize
+	prob.Maximize()
+
+	solveable := prob.ToSolveable()
+	expected := MILPproblem{
+		c: []float64{1, 2, -1},
+		A: nil,
+		b: nil,
+		G: mat.NewDense(7, 3, []float64{
+			1, 1, 0,
+			0, 3, 0,
+			0, 0, 1,
+			1, 0, 1,
+
+			// var bounds
+			1, 0, 0,
+			-1, 0, 0,
+			0, 0, -1,
+		}),
+		h: []float64{5, 2, 2, 2, 4, -2, -1},
 		integralityConstraints: []bool{false, true, true},
 	}
 

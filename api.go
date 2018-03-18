@@ -1,9 +1,13 @@
 package ilp
 
 import (
+	"math"
+
 	"gonum.org/v1/gonum/mat"
 )
 
+// TODO: sanity checks before converting Problem to a MILPproblem, such as NaN, Inf, and matrix shapes and variable bound domains
+// TODO: parsing of variable bounds to constraints does not deal with negative domains
 // TODO: GLPK testing is extremely convoluted due to its shitty API. Moreover, its output is sometimes plain wrong (doesnt diagnose unbounded problems).
 // TODO: try to formulate more advanced constraints, like sets of values instead of just integrality?
 // Note that having integer sets as constraints is basically the same as having an integrality constraint, and a <= and >= bound.
@@ -32,11 +36,18 @@ type Problem struct {
 
 // A variable of the MILP problem.
 type Variable struct {
+	// variable name for human reference
+	name string
+
 	// coefficient of the variable in the objective function
-	Coefficient float64
+	coefficient float64
 
 	// integrality constraint
-	Integer bool
+	integer bool
+
+	// bounds
+	upper float64
+	lower float64
 }
 
 // an Expression of a variable and an arbitrary float for use in defining constraints
@@ -69,17 +80,44 @@ func NewProblem() Problem {
 	return Problem{}
 }
 
-// add a variable and return a reference to that variable
-func (p *Problem) AddVariable(coef float64, integer bool) *Variable {
+// add a variable and return a reference to that variable.
+// Defaults to no integrality constraint and an objective function coefficient of 0
+func (p *Problem) AddVariable(name string) *Variable {
 
 	v := Variable{
-		Coefficient: coef,
-		Integer:     integer,
+		name:        name,
+		coefficient: 0,
+		integer:     false,
+		upper:       math.Inf(1),
+		lower:       0,
 	}
 
 	p.variables = append(p.variables, &v)
 
 	return &v
+}
+
+// SetCoeff sets the value of the variable in the objective function
+func (v *Variable) SetCoeff(coef float64) *Variable {
+	v.coefficient = coef
+	return v
+}
+
+func (v *Variable) IsInteger() *Variable {
+	v.integer = true
+	return v
+}
+
+// UpperBound sets the inclusive upper bound of this variable. Input must be positive.
+func (v *Variable) UpperBound(bound float64) *Variable {
+	v.upper = bound
+	return v
+}
+
+// LowerBound sets the inclusive lower bound of this variable. Input must be positive.
+func (v *Variable) LowerBound(bound float64) *Variable {
+	v.lower = bound
+	return v
 }
 
 // Add an Equality constraint to the problem, given a set of expressions that must equal equalTo.
@@ -146,9 +184,18 @@ func (p *Problem) checkExpression(e Expression) bool {
 
 }
 
+// get the index of the variable pointer in the variable pointer slice of the Problem struct using a linear search
+func (p *Problem) getVariableIndex(v *Variable) int {
+	for i, va := range p.variables {
+		if v == va {
+			return i
+		}
+	}
+	panic("variable pointer not found in Problem struct")
+}
+
 // Convert the abstract problem representation to its concrete numerical representation.
 func (p *Problem) ToSolveable() *MILPproblem {
-	// TODO: sanity checks before converting
 
 	// get the c vector containing the coefficients of the variables in the objective function
 	// simultaneously parse the integrality constraints
@@ -158,16 +205,16 @@ func (p *Problem) ToSolveable() *MILPproblem {
 
 		// if the Problem is set to be maximized, we assume that all variable coefficients reflect that.
 		// To turn this maximization problem into a minimization one, we multiply all coefficients with -1.
-		k := v.Coefficient
+		k := v.coefficient
 		if p.maximize {
 			k = k * -1
 		}
 
 		c = append(c, k)
-		integrality = append(integrality, v.Integer)
+		integrality = append(integrality, v.integer)
 	}
 
-	// add the equality constraints
+	// add the equality constraints specified as []Expression
 	var b []float64
 	var Adata []float64
 	for _, equality := range p.equalities {
@@ -176,11 +223,8 @@ func (p *Problem) ToSolveable() *MILPproblem {
 		equalityRow := make([]float64, len(p.variables))
 
 		for _, exp := range equality.expressions {
-			for i, va := range p.variables {
-				if exp.variable == va {
-					equalityRow[i] = exp.coef
-				}
-			}
+			i := p.getVariableIndex(exp.variable)
+			equalityRow[i] = exp.coef
 		}
 
 		Adata = append(Adata, equalityRow...)
@@ -195,31 +239,58 @@ func (p *Problem) ToSolveable() *MILPproblem {
 		A = mat.NewDense(len(p.equalities), len(p.variables), Adata)
 	}
 
-	// get the inequality constraints
+	// add the inequality constraints specified as []Expression
 	var h []float64
 	var Gdata []float64
+
 	for _, inEquality := range p.inequalities {
 		inEqualityRow := make([]float64, len(p.variables))
 
 		for _, exp := range inEquality.expressions {
-			for i, va := range p.variables {
-				if exp.variable == va {
-					inEqualityRow[i] = exp.coef
-				}
-			}
+			i := p.getVariableIndex(exp.variable)
+			inEqualityRow[i] = exp.coef
 		}
 
 		Gdata = append(Gdata, inEqualityRow...)
 
-		// add the RHS of the equality to the h vector
+		// add the RHS of the inequality to the h vector
 		h = append(h, inEquality.smallerThan)
+
+	}
+
+	// add the variable bounds as inequality constraints
+	for _, v := range p.variables {
+
+		// convert the upper bound to a row in the constraint matrix
+		if !math.IsInf(v.upper, 1) {
+			uRow := make([]float64, len(p.variables))
+			i := p.getVariableIndex(v)
+			uRow[i] = 1
+
+			Gdata = append(Gdata, uRow...)
+
+			// add the RHS of the inequality to the h vector
+			h = append(h, v.upper)
+		}
+
+		// convert the lower bound to a row in the constraint matrix
+		if !(v.lower <= 0) {
+			uRow := make([]float64, len(p.variables))
+			i := p.getVariableIndex(v)
+			uRow[i] = -1
+
+			Gdata = append(Gdata, uRow...)
+
+			// add the RHS of the inequality to the h vector
+			h = append(h, -v.lower)
+		}
 
 	}
 
 	// combine the Gdata vector into a matrix
 	var G *mat.Dense
-	if len(p.inequalities) > 0 {
-		G = mat.NewDense(len(p.inequalities), len(p.variables), Gdata)
+	if len(h) > 0 {
+		G = mat.NewDense(len(h), len(p.variables), Gdata)
 	}
 
 	return &MILPproblem{

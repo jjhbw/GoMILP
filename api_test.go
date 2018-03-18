@@ -1,6 +1,7 @@
 package ilp
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
 
@@ -11,7 +12,7 @@ func TestProblem_checkExpression(t *testing.T) {
 
 	// a true case
 	prob := NewProblem()
-	v := prob.AddVariable(1, false)
+	v := prob.AddVariable("v1").SetCoeff(1)
 
 	expr1 := Expression{
 		variable: v,
@@ -21,7 +22,7 @@ func TestProblem_checkExpression(t *testing.T) {
 
 	// an expression with a new variable not declared in the problem
 	expr2 := Expression{
-		variable: &Variable{Coefficient: 1, Integer: false},
+		variable: &Variable{coefficient: 1, integer: false},
 		coef:     1,
 	}
 	assert.False(t, prob.checkExpression(expr2))
@@ -50,7 +51,10 @@ func getRandomProblem(pZero float64, m, n int, rnd *rand.Rand) Problem {
 
 	// add variables
 	for i := 0; i < m; i++ {
-		v := prob.AddVariable(randValue(), boolgenerator.Bool())
+		v := prob.AddVariable(fmt.Sprintf("%v", i)).SetCoeff(randValue())
+		if boolgenerator.Bool() {
+			v.IsInteger()
+		}
 		vars = append(vars, v)
 	}
 
