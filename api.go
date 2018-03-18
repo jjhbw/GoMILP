@@ -4,7 +4,7 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-// TODO: More randomized testing and comparison with GLPK at the abstract Problem API level.
+// TODO: GLPK testing is extremely convoluted due to its shitty API. Moreover, its output is sometimes plain wrong (doesnt diagnose unbounded problems).
 // TODO: try to formulate more advanced constraints, like sets of values instead of just integrality?
 // Note that having integer sets as constraints is basically the same as having an integrality constraint, and a <= and >= bound.
 // Branching on this type of constraint can be optimized in a neat way (i.e. x>=0, x<=1, x<=0 ~-> x = 0)

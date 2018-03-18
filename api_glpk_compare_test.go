@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"testing"
 
+	"gonum.org/v1/gonum/optimize/convex/lp"
+
 	"github.com/lukpank/go-glpk/glpk"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
@@ -192,11 +194,9 @@ func testRandomProbCompareWithGLPK(t *testing.T, nTest int, pZero float64, maxN 
 
 		milp := prob.ToSolveable()
 
-		// debugging information
-		// t.Log("---Running test number ", i+1)
-		fmt.Println("---Test number ", i+1)
-
-		summarizeProblem(milp)
+		// debugging information (in both logs)
+		t.Log("---Running test number ", i)
+		fmt.Println("---Test number ", i)
 
 		// convert the problem to GLPK
 		glpkProblem := ToGLPK(prob)
@@ -218,11 +218,22 @@ func testRandomProbCompareWithGLPK(t *testing.T, nTest int, pZero float64, maxN 
 			if GLPKerror != nil {
 				//TODO: compare error messages. If equal: all is well.
 				if !equalErrors(t, GLPKerror, glpkProblem, ownErr) {
-					dumpDiagnostics(t, milp, "Errors of both solvers are NOT comparable: GLPKerror = %s vs. own error: %s", GLPKerror, ownErr)
-
+					t.Errorf("Problem %v. Errors of both solvers are NOT comparable: GLPKerror = %s vs. own error: %s", i, GLPKerror, ownErr)
+					// glpkProblem.WriteLP(nil, fmt.Sprintf("problem_%v", i))
+					summarizeProblem(milp)
+					t.FailNow()
 				}
 			} else {
-				dumpDiagnostics(t, milp, "only our own solver returned error: ", ownErr)
+				t.Logf("Problem: %v. Only our own solver returned error: %v", i, ownErr)
+				t.Log("GLPK solution:")
+				t.Log("Objective function value:", glpkProblem.MipObjVal())
+				for a := 0; a < len(milp.c); a++ {
+					t.Logf("Variable %v value: %g", a, glpkProblem.MipColVal(a+1))
+				}
+				// glpkProblem.WriteLP(nil, fmt.Sprintf("problem_%v", i))
+				summarizeProblem(milp)
+				t.FailNow()
+
 			}
 		} else {
 			equalSolutions(t, glpkProblem, &solution, &prob, tol)
@@ -232,18 +243,16 @@ func testRandomProbCompareWithGLPK(t *testing.T, nTest int, pZero float64, maxN 
 	}
 }
 
-func dumpDiagnostics(t *testing.T, milp *MILPproblem, message string, args ...interface{}) {
-	t.Errorf(message, args...)
-	summarizeProblem(milp)
-}
-
 func summarizeProblem(milp *MILPproblem) {
 	fmt.Println("Dimensions of own problem:")
 	fmt.Println("c:")
 	fmt.Println(milp.c)
-	if milp.G != nil {
+	fmt.Println("Integrality constraints:")
+	fmt.Println(milp.integralityConstraints)
+	fmt.Println("Branching heuristic:")
+	fmt.Println(milp.branchingHeuristic)
+	if milp.A != nil {
 		fmt.Println("A:")
-
 		fmt.Println(mat.Formatted(milp.A))
 	} else {
 		fmt.Println("A matrix is nil")
@@ -266,7 +275,9 @@ func summarizeProblem(milp *MILPproblem) {
 func equalErrors(t *testing.T, glpkError error, glpkProblem *glpk.Prob, ownError error) bool {
 	// okmsg := "Errors of both solvers are comparable: GLPKerror = %s vs. own error: %s"
 	glpkStatus := glpkProblem.Status()
-	glpkInfeasible := glpkStatus == glpk.INFEAS || glpkStatus == glpk.NOFEAS
+
+	// Note that we compare both the error message and the 'problem status'
+	glpkInfeasible := glpkStatus == glpk.INFEAS || glpkStatus == glpk.NOFEAS || glpkError == glpk.ENOPFS
 	ownInfeasible := ownError == NO_INTEGER_FEASIBLE_SOLUTION
 	if glpkInfeasible && ownInfeasible {
 		// t.Logf(okmsg, glpkError, ownError)
@@ -275,6 +286,11 @@ func equalErrors(t *testing.T, glpkError error, glpkProblem *glpk.Prob, ownError
 
 	if ownError == INITIAL_RELAXATION_NOT_FEASIBLE && glpkError == glpk.ENOPFS {
 		// t.Logf(okmsg, glpkError, ownError)
+		return true
+	}
+
+	// Also note that the GLPK integer solver seems to just throw errors around: almost every type of solve failure results in a 'no primal feasible solution'
+	if ownError == lp.ErrUnbounded && glpkError == glpk.ENOPFS {
 		return true
 	}
 

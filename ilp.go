@@ -488,6 +488,7 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 
 		default:
 			// this should never happen and thus should never fail silently.
+			// Leave this here in case anything is every screwed up in the case logic that would make this case reachable.
 			panic("unexpected case: could not decide what to do with branched subproblem")
 
 		}
