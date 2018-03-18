@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gonum.org/v1/gonum/mat"
 )
 
 func TestProblem_checkExpression(t *testing.T) {
@@ -79,4 +80,58 @@ func getRandomProblem(pZero float64, m, n int, rnd *rand.Rand) Problem {
 	}
 
 	return prob
+}
+
+func TestProblem_Solve(t *testing.T) {
+
+	// build an abstract Problem
+	prob := NewProblem()
+
+	// add the variables
+	v1 := prob.AddVariable("v1").SetCoeff(-1)
+	v2 := prob.AddVariable("v2").SetCoeff(-2)
+	v3 := prob.AddVariable("v3").SetCoeff(1)
+	v4 := prob.AddVariable("v4").SetCoeff(3)
+
+	// add the equality constraints
+	prob.AddConstraint().AddExpression(1, v1).EqualTo(5)
+	prob.AddConstraint().AddExpression(3, v2).EqualTo(2)
+	prob.AddConstraint().AddExpression(1, v3).EqualTo(2)
+	prob.AddConstraint().AddExpression(1, v4).SmallerThanOrEqualTo(2)
+
+	solveable := prob.toSolveable()
+	expected := MILPproblem{
+		c: []float64{-1, -2, 1, 3},
+		A: mat.NewDense(3, 4, []float64{
+			1, 0, 0, 0,
+			0, 3, 0, 0,
+			0, 0, 1, 0,
+		}),
+		b: []float64{5, 2, 2},
+		G: mat.NewDense(1, 4, []float64{
+			0, 0, 0, 1,
+		}),
+		h: []float64{2},
+		integralityConstraints: []bool{false, false, false, false},
+	}
+
+	//Note:  do not compare pointers
+	assert.Equal(t, expected, *solveable)
+
+	// solve the problem directly
+	soln, err := prob.Solve()
+	assert.NoError(t, err)
+
+	getVal := func(n string) float64 {
+		x, err := soln.GetValueFor(n)
+		assert.NoError(t, err)
+		return x
+	}
+
+	// check whether the found coefficient values are as expected
+	assert.Equal(t, getVal("v1"), float64(5))
+	assert.Equal(t, getVal("v2"), float64(0.6666666666666666))
+	assert.Equal(t, getVal("v3"), float64(2))
+	assert.Equal(t, getVal("v4"), float64(0))
+
 }

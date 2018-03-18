@@ -1,6 +1,7 @@
 package ilp
 
 import (
+	"fmt"
 	"math"
 
 	"gonum.org/v1/gonum/mat"
@@ -280,4 +281,62 @@ func (p *Problem) toSolveable() *MILPproblem {
 		integralityConstraints: integrality,
 		branchingHeuristic:     p.branchingHeuristic,
 	}
+}
+
+// Solve converts the abstract Problem to a MILPproblem, solves it, and parses its output.
+func (p *Problem) Solve() (*Solution, error) {
+	milp := p.toSolveable()
+
+	soln, err := milp.Solve()
+
+	if err != nil {
+		return nil, err
+	}
+
+	solution := Solution{
+		Objective: soln.solution.z,
+		byName:    make(map[string]float64),
+	}
+
+	for i, v := range soln.solution.x {
+		varName := p.variables[i].name
+
+		c := struct {
+			Name string
+			Coef float64
+		}{
+			Name: varName,
+			Coef: v,
+		}
+		solution.Coefficients = append(solution.Coefficients, c)
+
+		solution.byName[varName] = v
+
+	}
+
+	return &solution, nil
+
+}
+
+// Solution contains the results of a solved Problem.
+type Solution struct {
+	Objective float64
+
+	// the variables and their optimal values in the order they were orginally specified
+	Coefficients []struct {
+		Name string
+		Coef float64
+	}
+
+	// keyed by name
+	byName map[string]float64
+}
+
+// GetValueFor retrieves the value for a decision variable by its name.
+func (s *Solution) GetValueFor(varName string) (float64, error) {
+	val, ok := s.byName[varName]
+	if !ok {
+		return 0, fmt.Errorf("Variable name %v not found in Solution", varName)
+	}
+	return val, nil
 }
