@@ -119,6 +119,8 @@ type bnbConstraint struct {
 	gsharp []float64
 }
 
+// Retrieve all inequalities pertaining to this subProblem as a single G matrix and h vector.
+// That means the inequalities of the original problem description and the ones added during the branch-and-bound procedure.
 func (p subProblem) getInequalities() (*mat.Dense, []float64) {
 
 	if len(p.bnbConstraints) > 0 {
@@ -218,7 +220,7 @@ func sanityCheckDimensions(c []float64, A *mat.Dense, b []float64, G *mat.Dense,
 	return nil
 }
 
-// Convert a problem with inequalities (G and h) to a problem with only nonnegative equalities using slack variables
+// Convert a problem with inequalities (G and h) to a problem with only nonnegative equalities (represented by matrix aNew and vector bNew) using slack variables
 func convertToEqualities(c []float64, A *mat.Dense, b []float64, G *mat.Dense, h []float64) (cNew []float64, aNew *mat.Dense, bNew []float64) {
 
 	//sanity checks
@@ -283,12 +285,6 @@ func convertToEqualities(c []float64, A *mat.Dense, b []float64, G *mat.Dense, h
 	}
 
 	return
-}
-
-// Get the degrees of freedom of a problem
-func getDOF(c []float64, A mat.Matrix) int {
-	rows, _ := A.Dims()
-	return len(c) - rows
 }
 
 func (p subProblem) solve() (solution, error) {

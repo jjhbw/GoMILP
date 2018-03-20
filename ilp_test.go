@@ -558,6 +558,7 @@ func TestMILPproblem_Solve(t *testing.T) {
 				t.Errorf("MILPproblem.Solve() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+			// Note: we compare only the numerical solution variables
 			if !(reflect.DeepEqual(tt.want.solution.x, got.solution.x) && tt.want.solution.z == got.solution.z) {
 				t.Log(got.decisionLog)
 				t.Errorf("MILPproblem.Solve() = %v, want %v", got, tt.want)
