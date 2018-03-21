@@ -9,13 +9,11 @@ import (
 	"gonum.org/v1/gonum/optimize/convex/lp"
 )
 
-// TODO: Current storage of each node's decision is a potential GC nightmare.
 // TODO: add more diverse MILP test cases with known solutions for the BNB routine.
 // TODO: primal vs dual simplex; any benefit?
 // TODO: how to deal with matrix degeneracy in subproblems? Currently handled the same way as infeasible subproblems.
 // TODO: in branched subproblems: intiate simplex at solution of parent? (using argument of lp.Simplex)
 // TODO: does fiddling with the simplex tolerance value improve outcomes?
-// TODO: visualising the enumeration tree?
 // TODO: Currently implemented only the simplest branching heuristics. Room for improvement.
 // TODO: ? if branching yields an infeasible or otherwise unsolveable problem, try with another branching heuristic or use the second-best option.
 // TODO: also fun: linear program preprocessing (MATLAB docs: https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html#btv20av)
@@ -41,21 +39,9 @@ type MILPproblem struct {
 }
 
 type MILPsolution struct {
-	decisionLog []bnbStep
-	solution    solution
+	log      *logTree
+	solution solution
 }
-
-// Branch-and-bound decisions that can be made by the algorithm
-type bnbDecision string
-
-const (
-	SUBPROBLEM_IS_DEGENERATE        bnbDecision = "subproblem contains a degenerate (singular) matrix"
-	SUBPROBLEM_NOT_FEASIBLE         bnbDecision = "subproblem has no feasible solution"
-	WORSE_THAN_INCUMBENT            bnbDecision = "worse than incumbent"
-	BETTER_THAN_INCUMBENT_BRANCHING bnbDecision = "better than incumbent but infeasible, so branching"
-	BETTER_THAN_INCUMBENT_FEASIBLE  bnbDecision = "better than incumbent and feasible, so replacing incumbent"
-	INITIAL_RX_FEASIBLE_FOR_IP      bnbDecision = "initial relaxation is feasible for IP"
-)
 
 var (
 	INITIAL_RELAXATION_NOT_FEASIBLE = errors.New("initial relaxation is not feasible")
@@ -70,12 +56,6 @@ var (
 		lp.ErrSingular:   SUBPROBLEM_NOT_FEASIBLE,
 	}
 )
-
-type bnbStep struct {
-	solution         *solution
-	currentIncumbent *solution
-	decision         bnbDecision
-}
 
 func (p MILPproblem) toInitialSubProblem() subProblem {
 	return subProblem{
@@ -429,6 +409,9 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 		panic("integrality constraints vector is not same length as vector c")
 	}
 
+	// initiate the logging tree
+	tree := &logTree{}
+
 	// add the initial LP relaxation to the problem queue
 	initialRelaxation := p.toInitialSubProblem()
 
@@ -445,23 +428,24 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 	// If no integrality constraints are present, we can return the initial solution as-is if it is feasible.
 	// moreover, if the solution to the initial relaxation already satisfies all integrality constraints, we can present it as-is.
 	if feasibleForIP(p.integralityConstraints, initialRelaxationSolution.x) {
+
+		tree.addNode(initialRelaxationSolution, INITIAL_RX_FEASIBLE_FOR_IP)
+
 		return MILPsolution{
 			solution: initialRelaxationSolution,
-			decisionLog: []bnbStep{{
-				solution:         &initialRelaxationSolution,
-				currentIncumbent: nil,
-				decision:         INITIAL_RX_FEASIBLE_FOR_IP,
-			}},
+			log:      tree,
 		}, nil
 	}
 
+	// store the initial relaxation solution as the first node in the logging tree
+	tree.addNode(initialRelaxationSolution, INITIAL_RELAXATION_LEGAL)
+
 	// Start the branch and bound procedure for this problem
 	var problemQueue []subProblem
-	var steps []bnbStep
-	var incumbent *solution
+	var incumbent solution
 
 	// use the intial relaxation as the incumbent
-	incumbent = &initialRelaxationSolution
+	incumbent = initialRelaxationSolution
 
 	// branch the inital relaxation and add its children to the queue
 	p1, p2 := incumbent.branch()
@@ -471,40 +455,35 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 
 		// pop a problem from the queue
 		var prob subProblem
+		var decision bnbDecision
 		prob, problemQueue = problemQueue[0], problemQueue[1:]
 
 		// solve the subproblem
 		candidate, err := prob.solve()
-
-		// store the state to be evaluated as a step
-		step := bnbStep{
-			solution:         &candidate,
-			currentIncumbent: incumbent,
-		}
 
 		// decide on what to do with the solution:
 		switch {
 
 		case err != nil:
 			failure := translateSolverFailure(err)
-			step.decision = failure
+			decision = failure
 
 		// Note that the objective is a minimization.
 		case incumbent.z <= candidate.z:
 			// noop
-			step.decision = WORSE_THAN_INCUMBENT
+			decision = WORSE_THAN_INCUMBENT
 
 		case incumbent.z > candidate.z:
 			if feasibleForIP(p.integralityConstraints, candidate.x) {
 				// candidate is an improvement over the incumbent
-				incumbent = &candidate
-				step.decision = BETTER_THAN_INCUMBENT_FEASIBLE
+				incumbent = candidate
+				decision = BETTER_THAN_INCUMBENT_FEASIBLE
 			} else {
 				//candidate is an improvement over the incumbent, but not feasible.
 				//branch and add the descendants of this candidate to the queue
 				p1, p2 := candidate.branch()
 				problemQueue = append(problemQueue, p1, p2)
-				step.decision = BETTER_THAN_INCUMBENT_BRANCHING
+				decision = BETTER_THAN_INCUMBENT_BRANCHING
 			}
 
 		default:
@@ -515,7 +494,7 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 		}
 
 		// save this step to the log
-		steps = append(steps, step)
+		tree.addNode(candidate, decision)
 
 	}
 
@@ -524,8 +503,8 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 	}
 
 	return MILPsolution{
-		solution:    *incumbent,
-		decisionLog: steps,
+		solution: incumbent,
+		log:      tree,
 	}, nil
 
 }

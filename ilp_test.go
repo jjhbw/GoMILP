@@ -554,13 +554,13 @@ func TestMILPproblem_Solve(t *testing.T) {
 			}
 			got, err := p.Solve()
 			if (err != nil) != tt.wantErr {
-				t.Log(got.decisionLog)
+				t.Log(got.log)
 				t.Errorf("MILPproblem.Solve() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			// Note: we compare only the numerical solution variables
 			if !(reflect.DeepEqual(tt.want.solution.x, got.solution.x) && tt.want.solution.z == got.solution.z) {
-				t.Log(got.decisionLog)
+				t.Log(got.log)
 				t.Errorf("MILPproblem.Solve() = %v, want %v", got, tt.want)
 			}
 		})
@@ -587,15 +587,15 @@ func testRandomMILP(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.
 		m := rnd.Intn(n-1) + 1  // m must be between 1 and n
 		prob := getRandomMILP(pZero, m, n, rnd)
 
-		fmt.Println("c:")
-		fmt.Println(prob.c)
-		fmt.Println("A:")
-		fmt.Println(mat.Formatted(prob.A))
-		fmt.Println("b:")
-		fmt.Println(prob.b)
-		solution, err := prob.Solve()
+		// fmt.Println("c:")
+		// fmt.Println(prob.c)
+		// fmt.Println("A:")
+		// fmt.Println(mat.Formatted(prob.A))
+		// fmt.Println("b:")
+		// fmt.Println(prob.b)
+		prob.Solve()
 
-		fmt.Println(solution.solution.x, solution.solution.z, err)
+		// fmt.Println(solution.solution.x, solution.solution.z, err)
 	}
 }
 
