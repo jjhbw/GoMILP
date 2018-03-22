@@ -49,8 +49,8 @@ const (
 	SUBPROBLEM_IS_DEGENERATE        bnbDecision = "subproblem contains a degenerate (singular) matrix"
 	SUBPROBLEM_NOT_FEASIBLE         bnbDecision = "subproblem has no feasible solution"
 	WORSE_THAN_INCUMBENT            bnbDecision = "worse than incumbent"
-	BETTER_THAN_INCUMBENT_BRANCHING bnbDecision = "better than incumbent but infeasible, so branching"
-	BETTER_THAN_INCUMBENT_FEASIBLE  bnbDecision = "better than incumbent and feasible, so replacing incumbent"
+	BETTER_THAN_INCUMBENT_BRANCHING bnbDecision = "better than incumbent but not integer feasible, so branching"
+	BETTER_THAN_INCUMBENT_FEASIBLE  bnbDecision = "better than incumbent and integer feasible, so replacing incumbent"
 	INITIAL_RX_FEASIBLE_FOR_IP      bnbDecision = "initial relaxation is feasible for IP"
 	INITIAL_RELAXATION_LEGAL        bnbDecision = "initial relaxation is legal and thus set as initial incumbent"
 )
@@ -166,44 +166,50 @@ func (p *enumerationTree) solveWorker() {
 
 }
 
-// TODO: store this decision somewhere
+// TODO: store each decision somewhere
 
 func (p *enumerationTree) solutionChecker() {
 
-	// decide on what to do with the candidate solution:
-	var decision bnbDecision
-
 	for candidate := range p.candidates {
 
-		fmt.Println(candidate.x, candidate.z, candidate.err)
+		// decide on what to do with the candidate solution:
+		// var decision bnbDecision
 
 		// retrieve the objective function value of the incumbent
 		// if no incumbent is set, return +Inf
 		incumbentZ := math.Inf(1)
 		if p.incumbent != nil {
+
 			incumbentZ = p.incumbent.z
 		}
 
 		switch {
 
 		case candidate.err != nil:
-			failure := translateSolverFailure(candidate.err)
-			decision = failure
+			translateSolverFailure(candidate.err)
+			// failure := translateSolverFailure(candidate.err)
+			// decision = failure
 
 		// Note that the objective is always minimization.
 		case incumbentZ <= candidate.z:
 			// noop
-			decision = WORSE_THAN_INCUMBENT
+			// decision = WORSE_THAN_INCUMBENT
 
 		case incumbentZ > candidate.z:
 			if feasibleForIP(p.rootProblem.integralityConstraints, candidate.x) {
-				// candidate is an improvement over the incumbent
-				p.incumbent = &candidate
-				decision = BETTER_THAN_INCUMBENT_FEASIBLE
+				// Candidate is an improvement over the incumbent
+
+				// Note that we first take the value of candidate before indirecting again.
+				// We don't want to be the guy that creates a pointer to the iteration receiver ('candidate' in this case).
+				inc := candidate
+				p.incumbent = &inc
+				// decision = BETTER_THAN_INCUMBENT_FEASIBLE
+
 			} else {
+
 				//candidate is an improvement over the incumbent, but not feasible.
 				//branch and add the descendants of this candidate to the queue
-				decision = BETTER_THAN_INCUMBENT_BRANCHING
+				// decision = BETTER_THAN_INCUMBENT_BRANCHING
 				p1, p2 := candidate.branch()
 				p.enqueueProblems(p1, p2)
 
@@ -215,8 +221,6 @@ func (p *enumerationTree) solutionChecker() {
 			panic("unexpected case: could not decide what to do with branched subproblem")
 
 		}
-
-		fmt.Println(decision)
 
 		// inform the manager that we finished checking a candidate
 		p.inProgress.Done()

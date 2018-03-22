@@ -2,6 +2,7 @@ package ilp
 
 import (
 	"errors"
+	"fmt"
 
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize/convex/lp"
@@ -84,6 +85,8 @@ func (p milpProblem) solve(workers int) (milpSolution, error) {
 
 	// check if the solution is feasible considering the integrality constraints
 	if incumbent.err != nil || !feasibleForIP(p.integralityConstraints, incumbent.x) {
+		fmt.Println("what the fucksticks")
+
 		return milpSolution{}, NO_INTEGER_FEASIBLE_SOLUTION
 	}
 
