@@ -74,7 +74,12 @@ func (p milpProblem) toInitialSubProblem() subProblem {
 	}
 }
 
-func (p milpProblem) solve() (milpSolution, error) {
+// Argument workers specifies how many workers should be used for traversing the enumeration tree.
+// This is mainly important from a space complexity point of view, as each worker is a potentially concurrent simplex algorithm.
+func (p milpProblem) solve(workers int) (milpSolution, error) {
+	if workers <= 0 {
+		panic("number of workers may not be lower than zero")
+	}
 
 	if len(p.integralityConstraints) != len(p.c) {
 		panic("integrality constraints vector is not same length as vector c")
@@ -87,7 +92,7 @@ func (p milpProblem) solve() (milpSolution, error) {
 	enumTree := newEnumerationTree(initialRelaxation)
 
 	// start the branch and bound procedure, presenting the solution to the initial relaxation as a candidate
-	incumbent, log := enumTree.startSearch(N_WORKERS)
+	incumbent, log := enumTree.startSearch(workers)
 
 	if incumbent.err == INITIAL_RELAXATION_NOT_FEASIBLE {
 		return milpSolution{}, INITIAL_RELAXATION_NOT_FEASIBLE

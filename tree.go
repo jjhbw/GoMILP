@@ -183,7 +183,7 @@ func (p *enumerationTree) solutionChecker() {
 			switch {
 
 			case candidate.err != nil:
-				// TODO: store this decision
+				// TODO: store this decision somewhere
 				translateSolverFailure(candidate.err)
 				// failure := translateSolverFailure(candidate.err)
 				// decision = failure

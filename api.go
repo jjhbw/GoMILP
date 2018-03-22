@@ -7,6 +7,8 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
+// TODO: set number of workers
+// TODO: set branching algorithm?
 // TODO: sanity checks before converting Problem to a MILPproblem, such as NaN, Inf, and matrix shapes and variable bound domains
 // TODO: parsing of variable bounds to constraints does not deal with negative domains
 // TODO: GLPK testing is extremely convoluted due to its shitty API. Moreover, its output is sometimes plain wrong (doesnt diagnose unbounded problems).
@@ -32,6 +34,9 @@ type Problem struct {
 
 	// the branching heuristic to use for branch-and-bound (defaults to 0 == maxFun)
 	branchingHeuristic BranchHeuristic
+
+	// number of workers to solve the milpProblem with
+	workers int
 }
 
 // A variable of the MILP problem.
@@ -73,7 +78,9 @@ type Constraint struct {
 
 // Initiate a new MILP problem abstraction
 func NewProblem() Problem {
-	return Problem{}
+	return Problem{
+		workers: 1,
+	}
 }
 
 // add a variable and return a reference to that variable.
@@ -287,7 +294,7 @@ func (p *Problem) toSolveable() *milpProblem {
 func (p *Problem) Solve() (*Solution, error) {
 	milp := p.toSolveable()
 
-	soln, err := milp.solve()
+	soln, err := milp.solve(p.workers)
 
 	if err != nil {
 		return nil, err

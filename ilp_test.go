@@ -10,7 +10,7 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-func TestMILPproblem_Solve_Smoke_NoInteger(t *testing.T) {
+func TestmilpProblem_Solve_Smoke_NoInteger(t *testing.T) {
 	prob := milpProblem{
 		c: []float64{-1, -2, 0, 0},
 		A: mat.NewDense(2, 4, []float64{
@@ -21,7 +21,7 @@ func TestMILPproblem_Solve_Smoke_NoInteger(t *testing.T) {
 		integralityConstraints: []bool{false, false, false, false},
 	}
 
-	solution, err := prob.solve()
+	solution, err := prob.solve(1)
 	assert.NoError(t, err)
 	assert.Equal(t, float64(-8), solution.solution.z)
 	assert.Equal(t, []float64{2, 3, 0, 0}, solution.solution.x)
@@ -46,7 +46,39 @@ func TestInitialSubproblemSolve(t *testing.T) {
 	assert.NoError(t, solution.err)
 }
 
-func TestMILPproblem_Solve(t *testing.T) {
+// a regression test case for a race condition occuring in the solver
+func TestMilpProblem_Solve_Regression(t *testing.T) {
+
+	prob := milpProblem{
+		c: []float64{-1, -2, 0, 0},
+		A: mat.NewDense(2, 4, []float64{
+			-1, 2.6, 1, 0,
+			3, 1.1, 0, 1,
+		}),
+		b: []float64{4, 9},
+		G: nil,
+		h: nil,
+		integralityConstraints: []bool{false, true, false, false},
+	}
+
+	want := milpSolution{
+		solution: solution{
+			x: []float64{2.2666666666666666, 2, 1.0666666666666664, 0},
+			z: -6.266666666666667,
+		},
+	}
+
+	got, err := prob.solve(2)
+	assert.NoError(t, err)
+
+	if !(reflect.DeepEqual(want.solution.x, got.solution.x) && want.solution.z == got.solution.z) {
+		t.Log(got)
+		t.Errorf("milpProblem.Solve() = %v, want %v", got, want)
+	}
+
+}
+
+func TestMilpProblem_SolveMultiple(t *testing.T) {
 	type fields struct {
 		c                      []float64
 		A                      *mat.Dense
@@ -163,44 +195,64 @@ func TestMILPproblem_Solve(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			p := milpProblem{
-				c: tt.fields.c,
-				A: tt.fields.A,
-				b: tt.fields.b,
-				G: tt.fields.G,
-				h: tt.fields.h,
-				integralityConstraints: tt.fields.integralityConstraints,
-			}
-			got, err := p.solve()
-			if err != tt.wantErr {
-				t.Log(got)
-				t.Errorf("MILPproblem.Solve() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			// Note: we compare only the numerical solution variables
-			if !(reflect.DeepEqual(tt.want.solution.x, got.solution.x) && tt.want.solution.z == got.solution.z) {
-				t.Log(got)
-				t.Errorf("MILPproblem.Solve() = %v, want %v", got, tt.want)
-			}
-		})
+
+		// Run the tests with a varying number of workers
+		for i := 1; i <= 4; i++ {
+
+			testname := fmt.Sprintf("%v | workers: %v", tt.name, i)
+
+			t.Run(testname, func(t *testing.T) {
+				p := milpProblem{
+					c: tt.fields.c,
+					A: tt.fields.A,
+					b: tt.fields.b,
+					G: tt.fields.G,
+					h: tt.fields.h,
+					integralityConstraints: tt.fields.integralityConstraints,
+				}
+
+				// solve the problem with 'i' workers
+				got, err := p.solve(i)
+				if err != tt.wantErr {
+					t.Log(got)
+					t.Errorf("milpProblem.Solve() error = %v, wantErr %v", err, tt.wantErr)
+					return
+				}
+
+				// Note: we compare only the numerical solution variables
+				if !(reflect.DeepEqual(tt.want.solution.x, got.solution.x) && tt.want.solution.z == got.solution.z) {
+					t.Log(got)
+					t.Errorf("milpProblem.Solve() = %v, want %v", got, tt.want)
+				}
+			})
+		}
+
 	}
 }
 
+// Test a series of randomly generated problems, hunting for panics.
 func TestRandomized(t *testing.T) {
 	rnd := rand.New(rand.NewSource(1))
 
-	// some small problems
-	testRandomMILP(t, 100, 0, 10, rnd)
+	workerRange := 3
+	for i := 1; i <= workerRange; i++ {
 
-	// some small problems with some zeros
-	testRandomMILP(t, 100, 0.1, 10, rnd)
+		// some small problems
+		testRandomMILP(t, 100, 0, 10, rnd, i)
 
-	// larger problems
-	testRandomMILP(t, 100, 0, 100, rnd)
+		// some small problems with some zeros
+		testRandomMILP(t, 100, 0.1, 10, rnd, i)
+
+		// larger problems
+		testRandomMILP(t, 100, 0, 100, rnd, i)
+	}
+
 }
 
-func testRandomMILP(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.Rand) {
+func testRandomMILP(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.Rand, workers int) {
+	var sol milpSolution
+	var err error
+
 	// Try a bunch of random LPs
 	for i := 0; i < nTest; i++ {
 		n := rnd.Intn(maxN) + 2 // n must be at least two.
@@ -213,10 +265,17 @@ func testRandomMILP(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.
 		// fmt.Println(mat.Formatted(prob.A))
 		// fmt.Println("b:")
 		// fmt.Println(prob.b)
-		prob.solve()
+
+		// assign the solution to prevent the compiler from optimizing the call out
+		sol, err = prob.solve(workers)
 
 		// fmt.Println(solution.solution.x, solution.solution.z, err)
 	}
+	if err != nil {
+		t.Log(err)
+		t.Log(sol.solution)
+	}
+
 }
 
 // adapted from Gonum's lp.Simplex.
