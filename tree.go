@@ -11,7 +11,9 @@ import (
 // The logTree datastructure is used as a log of the branch-and-bound algorithms decisions.
 // This code should not contain algorithm business logic to ensure loose coupling.
 // Note that we don't want to store references to subproblem datastructures, as this would preclude GC for these potentially large structs.
-
+// TODO: add methods and actual functionality
+// TODO: maybe use an interface for easier instrumentation during testing
+// Note that we should take care not to (indirectly) save a reference to the entire subProblem struct as this would be a potential GC nightmare.
 type logTree struct {
 	root *node
 }
@@ -56,16 +58,6 @@ func newNode(s solution) (n *node) {
 		children: []*node{},
 	}
 	return
-}
-
-func (n *node) addChildren(children ...node) {
-	for _, c := range children {
-		n.children = append(n.children, &c)
-	}
-}
-
-func (n *node) setDecision(d bnbDecision) {
-	n.decision = d
 }
 
 type enumerationTree struct {
@@ -166,6 +158,8 @@ func (p *enumerationTree) solveWorker() {
 func (p *enumerationTree) solutionChecker() {
 
 	for candidate := range p.candidates {
+
+		fmt.Println(candidate.x, candidate.err)
 
 		if p.incumbent == nil {
 			p.incumbent = &candidate
