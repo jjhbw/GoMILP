@@ -11,7 +11,7 @@ import (
 )
 
 func TestMILPproblem_Solve_Smoke_NoInteger(t *testing.T) {
-	prob := MILPproblem{
+	prob := milpProblem{
 		c: []float64{-1, -2, 0, 0},
 		A: mat.NewDense(2, 4, []float64{
 			-1, 2, 1, 0,
@@ -21,14 +21,14 @@ func TestMILPproblem_Solve_Smoke_NoInteger(t *testing.T) {
 		integralityConstraints: []bool{false, false, false, false},
 	}
 
-	solution, err := prob.Solve()
+	solution, err := prob.solve()
 	assert.NoError(t, err)
 	assert.Equal(t, float64(-8), solution.solution.z)
 	assert.Equal(t, []float64{2, 3, 0, 0}, solution.solution.x)
 }
 
 func TestInitialSubproblemSolve(t *testing.T) {
-	prob := MILPproblem{
+	prob := milpProblem{
 		c: []float64{-1, -2, 0, 0},
 		A: mat.NewDense(2, 4, []float64{
 			-1, 2, 1, 0,
@@ -58,7 +58,7 @@ func TestMILPproblem_Solve(t *testing.T) {
 	tests := []struct {
 		name    string
 		fields  fields
-		want    MILPsolution
+		want    milpSolution
 		wantErr error
 	}{
 		{
@@ -74,7 +74,7 @@ func TestMILPproblem_Solve(t *testing.T) {
 				h: nil,
 				integralityConstraints: []bool{false, false, false, false},
 			},
-			want: MILPsolution{
+			want: milpSolution{
 				solution: solution{
 					x: []float64{2, 3, 0, 0},
 					z: float64(-8),
@@ -94,7 +94,7 @@ func TestMILPproblem_Solve(t *testing.T) {
 				h: nil,
 				integralityConstraints: []bool{false, false, false, false},
 			},
-			want: MILPsolution{
+			want: milpSolution{
 				solution: solution{
 					x: []float64{2, 3, 0, 0},
 					z: float64(-8),
@@ -114,7 +114,7 @@ func TestMILPproblem_Solve(t *testing.T) {
 				h: nil,
 				integralityConstraints: []bool{false, true, false, false},
 			},
-			want: MILPsolution{
+			want: milpSolution{
 				solution: solution{
 					x: []float64{2.2666666666666666, 2, 1.0666666666666664, 0},
 					z: -6.266666666666667,
@@ -134,7 +134,7 @@ func TestMILPproblem_Solve(t *testing.T) {
 				h: nil,
 				integralityConstraints: []bool{false, false, true},
 			},
-			want: MILPsolution{
+			want: milpSolution{
 				solution: solution{
 					x: []float64{2.134831460674157, 2.3595505617977524, 0},
 					z: -6.853932584269662,
@@ -154,7 +154,7 @@ func TestMILPproblem_Solve(t *testing.T) {
 				h: nil,
 				integralityConstraints: []bool{false, false, true},
 			},
-			want: MILPsolution{
+			want: milpSolution{
 				solution: solution{
 					x: []float64{1.0674157303370786, 2.3595505617977524, 0},
 					z: -5.786516853932583,
@@ -164,7 +164,7 @@ func TestMILPproblem_Solve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := MILPproblem{
+			p := milpProblem{
 				c: tt.fields.c,
 				A: tt.fields.A,
 				b: tt.fields.b,
@@ -172,7 +172,7 @@ func TestMILPproblem_Solve(t *testing.T) {
 				h: tt.fields.h,
 				integralityConstraints: tt.fields.integralityConstraints,
 			}
-			got, err := p.Solve()
+			got, err := p.solve()
 			if err != tt.wantErr {
 				t.Log(got)
 				t.Errorf("MILPproblem.Solve() error = %v, wantErr %v", err, tt.wantErr)
@@ -213,14 +213,14 @@ func testRandomMILP(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.
 		// fmt.Println(mat.Formatted(prob.A))
 		// fmt.Println("b:")
 		// fmt.Println(prob.b)
-		prob.Solve()
+		prob.solve()
 
 		// fmt.Println(solution.solution.x, solution.solution.z, err)
 	}
 }
 
 // adapted from Gonum's lp.Simplex.
-func getRandomMILP(pZero float64, m, n int, rnd *rand.Rand) *MILPproblem {
+func getRandomMILP(pZero float64, m, n int, rnd *rand.Rand) *milpProblem {
 
 	if m == 0 || n == 0 {
 		panic("m==n not allowed")
@@ -271,7 +271,7 @@ func getRandomMILP(pZero float64, m, n int, rnd *rand.Rand) *MILPproblem {
 	if len(c) != len(integralityConstraints) {
 		panic("randomized constraint vector and c vector not of equal length")
 	}
-	return &MILPproblem{
+	return &milpProblem{
 		c: c,
 		A: a,
 		b: b,

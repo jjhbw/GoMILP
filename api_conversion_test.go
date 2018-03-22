@@ -27,7 +27,7 @@ func TestProblem_toSolveableA(t *testing.T) {
 	prob.AddConstraint().AddExpression(1, v4).SmallerThanOrEqualTo(2)
 
 	solveable := prob.toSolveable()
-	expected := MILPproblem{
+	expected := milpProblem{
 		c: []float64{-1, -2, 1, 3},
 		A: mat.NewDense(3, 4, []float64{
 			1, 0, 0, 0,
@@ -63,7 +63,7 @@ func TestProblem_toSolveableB(t *testing.T) {
 	prob.AddConstraint().AddExpression(1, v3).EqualTo(2)
 
 	solveable := prob.toSolveable()
-	expected := MILPproblem{
+	expected := milpProblem{
 		c: []float64{-1, -2, 1},
 		A: mat.NewDense(3, 3, []float64{
 			1, 0, 0,
@@ -100,7 +100,7 @@ func TestProblem_toSolveableC(t *testing.T) {
 	prob.Maximize()
 
 	solveable := prob.toSolveable()
-	expected := MILPproblem{
+	expected := milpProblem{
 		c: []float64{1, 2, -1},
 		A: mat.NewDense(3, 3, []float64{
 			1, 0, 0,
@@ -137,7 +137,7 @@ func TestProblem_toSolveableD(t *testing.T) {
 	prob.Maximize()
 
 	solveable := prob.toSolveable()
-	expected := MILPproblem{
+	expected := milpProblem{
 		c: []float64{1, 2, -1},
 		A: mat.NewDense(3, 3, []float64{
 			1, 1, 0,
@@ -175,7 +175,7 @@ func TestProblem_toSolveableE(t *testing.T) {
 	prob.Maximize()
 
 	solveable := prob.toSolveable()
-	expected := MILPproblem{
+	expected := milpProblem{
 		c: []float64{1, 2, -1},
 		A: mat.NewDense(3, 3, []float64{
 			1, 1, 0,
@@ -215,7 +215,7 @@ func TestProblem_toSolveableF(t *testing.T) {
 	prob.Maximize()
 
 	solveable := prob.toSolveable()
-	expected := MILPproblem{
+	expected := milpProblem{
 		c: []float64{1, 2, -1},
 		A: nil,
 		b: nil,
@@ -254,7 +254,7 @@ func TestProblem_toSolveableG(t *testing.T) {
 	prob.Maximize()
 
 	solveable := prob.toSolveable()
-	expected := MILPproblem{
+	expected := milpProblem{
 		c: []float64{1, 2, -1},
 		A: nil,
 		b: nil,

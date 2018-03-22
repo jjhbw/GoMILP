@@ -23,7 +23,7 @@ const (
 	N_WORKERS = 2
 )
 
-type MILPproblem struct {
+type milpProblem struct {
 	// 	minimize c^T * x
 	// s.t      G * x <= h
 	//          A * x = b
@@ -41,7 +41,7 @@ type MILPproblem struct {
 	branchingHeuristic BranchHeuristic
 }
 
-type MILPsolution struct {
+type milpSolution struct {
 	log      *logTree
 	solution solution
 }
@@ -60,7 +60,7 @@ var (
 	}
 )
 
-func (p MILPproblem) toInitialSubProblem() subProblem {
+func (p milpProblem) toInitialSubProblem() subProblem {
 	return subProblem{
 		c: p.c,
 		A: p.A,
@@ -74,7 +74,7 @@ func (p MILPproblem) toInitialSubProblem() subProblem {
 	}
 }
 
-func (p MILPproblem) Solve() (MILPsolution, error) {
+func (p milpProblem) solve() (milpSolution, error) {
 
 	if len(p.integralityConstraints) != len(p.c) {
 		panic("integrality constraints vector is not same length as vector c")
@@ -90,15 +90,15 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 	incumbent, log := enumTree.startSearch(N_WORKERS)
 
 	if incumbent.err == INITIAL_RELAXATION_NOT_FEASIBLE {
-		return MILPsolution{}, INITIAL_RELAXATION_NOT_FEASIBLE
+		return milpSolution{}, INITIAL_RELAXATION_NOT_FEASIBLE
 	}
 
 	// check if the solution is feasible considering the integrality constraints
 	if incumbent.err != nil || !feasibleForIP(p.integralityConstraints, incumbent.x) {
-		return MILPsolution{}, NO_INTEGER_FEASIBLE_SOLUTION
+		return milpSolution{}, NO_INTEGER_FEASIBLE_SOLUTION
 	}
 
-	return MILPsolution{
+	return milpSolution{
 		solution: incumbent,
 		log:      log,
 	}, nil

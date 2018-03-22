@@ -184,7 +184,7 @@ func (p *Problem) getVariableIndex(v *Variable) int {
 }
 
 // Convert the abstract problem representation to its concrete numerical representation.
-func (p *Problem) toSolveable() *MILPproblem {
+func (p *Problem) toSolveable() *milpProblem {
 
 	// get the c vector containing the coefficients of the variables in the objective function
 	// simultaneously parse the integrality constraints
@@ -272,7 +272,7 @@ func (p *Problem) toSolveable() *MILPproblem {
 		G = mat.NewDense(len(h), len(p.variables), Gdata)
 	}
 
-	return &MILPproblem{
+	return &milpProblem{
 		c: c,
 		A: A,
 		b: b,
@@ -287,7 +287,7 @@ func (p *Problem) toSolveable() *MILPproblem {
 func (p *Problem) Solve() (*Solution, error) {
 	milp := p.toSolveable()
 
-	soln, err := milp.Solve()
+	soln, err := milp.solve()
 
 	if err != nil {
 		return nil, err

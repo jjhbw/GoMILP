@@ -100,7 +100,7 @@ func TestProblem_Solve(t *testing.T) {
 	prob.AddConstraint().AddExpression(1, v4).SmallerThanOrEqualTo(2)
 
 	solveable := prob.toSolveable()
-	expected := MILPproblem{
+	expected := milpProblem{
 		c: []float64{-1, -2, 1, 3},
 		A: mat.NewDense(3, 4, []float64{
 			1, 0, 0, 0,
