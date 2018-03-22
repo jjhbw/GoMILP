@@ -72,10 +72,10 @@ func TestInitialSubproblemSolve(t *testing.T) {
 
 	s := prob.toInitialSubProblem()
 
-	solution, err := s.solve()
+	solution := s.solve()
 	t.Log(solution.problem)
 	fmt.Println(solution.x)
-	assert.NoError(t, err)
+	assert.NoError(t, solution.err)
 }
 
 func TestFeasibleForIP(t *testing.T) {
@@ -441,7 +441,7 @@ func TestMILPproblem_Solve(t *testing.T) {
 		name    string
 		fields  fields
 		want    MILPsolution
-		wantErr bool
+		wantErr error
 	}{
 		{
 			name: "No integrality constraints, no inequalities",
@@ -484,7 +484,7 @@ func TestMILPproblem_Solve(t *testing.T) {
 			},
 		},
 		{
-			name: "No integer feasible solution",
+			name: "1: One integrality constraint and no initial inequality constraints.",
 			fields: fields{
 				c: []float64{-1, -2, 0, 0},
 				A: mat.NewDense(2, 4, []float64{
@@ -496,11 +496,15 @@ func TestMILPproblem_Solve(t *testing.T) {
 				h: nil,
 				integralityConstraints: []bool{false, true, false, false},
 			},
-			want:    MILPsolution{},
-			wantErr: true,
+			want: MILPsolution{
+				solution: solution{
+					x: []float64{2.2666666666666666, 2, 1.0666666666666664, 0},
+					z: -6.266666666666667,
+				},
+			},
 		},
 		{
-			name: "1: One integrality constraint and no initial inequality constraints.",
+			name: "2: One integrality constraint and no initial inequality constraints.",
 			fields: fields{
 				c: []float64{-1, -2, 0},
 				A: mat.NewDense(2, 3, []float64{
@@ -518,10 +522,9 @@ func TestMILPproblem_Solve(t *testing.T) {
 					z: -6.853932584269662,
 				},
 			},
-			wantErr: false,
 		},
 		{
-			name: "2: One integrality constraint and no initial inequality constraints.",
+			name: "3: One integrality constraint and no initial inequality constraints.",
 			fields: fields{
 				c: []float64{-1, -2, 1},
 				A: mat.NewDense(2, 3, []float64{
@@ -539,7 +542,6 @@ func TestMILPproblem_Solve(t *testing.T) {
 					z: -5.786516853932583,
 				},
 			},
-			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
@@ -553,14 +555,14 @@ func TestMILPproblem_Solve(t *testing.T) {
 				integralityConstraints: tt.fields.integralityConstraints,
 			}
 			got, err := p.Solve()
-			if (err != nil) != tt.wantErr {
-				t.Log(got.log)
+			if err != tt.wantErr {
+				t.Log(got)
 				t.Errorf("MILPproblem.Solve() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			// Note: we compare only the numerical solution variables
 			if !(reflect.DeepEqual(tt.want.solution.x, got.solution.x) && tt.want.solution.z == got.solution.z) {
-				t.Log(got.log)
+				t.Log(got)
 				t.Errorf("MILPproblem.Solve() = %v, want %v", got, tt.want)
 			}
 		})

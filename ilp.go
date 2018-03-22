@@ -20,6 +20,11 @@ import (
 // TODO: Queue is currently FIFO. For depth-first exploration, we should go with a LIFO queue.
 // TODO: Add heuristic determining which node gets explored first (as we are using depth-first search) https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html?s_tid=gn_loc_drop#btzwtmv
 
+const (
+	// TODO: move to argument
+	N_WORKERS = 2
+)
+
 type MILPproblem struct {
 	// 	minimize c^T * x
 	// s.t      G * x <= h
@@ -267,7 +272,7 @@ func convertToEqualities(c []float64, A *mat.Dense, b []float64, G *mat.Dense, h
 	return
 }
 
-func (p subProblem) solve() (solution, error) {
+func (p subProblem) solve() solution {
 
 	// get the inequality constraints
 	G, h := p.getInequalities()
@@ -319,7 +324,8 @@ func (p subProblem) solve() (solution, error) {
 		problem: &p,
 		x:       x,
 		z:       z,
-	}, err
+		err:     err,
+	}
 
 }
 
@@ -327,6 +333,7 @@ type solution struct {
 	problem *subProblem
 	x       []float64
 	z       float64
+	err     error
 }
 
 // branch the solution into two subproblems that have an added constraint on a particular variable in a particular direction.
@@ -409,27 +416,26 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 		panic("integrality constraints vector is not same length as vector c")
 	}
 
-	// initiate the logging tree
-	tree := &logTree{}
-
 	// add the initial LP relaxation to the problem queue
 	initialRelaxation := p.toInitialSubProblem()
 
 	// solve the initial relaxation
-	initialRelaxationSolution, err := initialRelaxation.solve()
-	if err != nil {
-		if err == lp.ErrInfeasible {
+	initialRelaxationSolution := initialRelaxation.solve()
+	if initialRelaxationSolution.err != nil {
+		if initialRelaxationSolution.err == lp.ErrInfeasible {
 			// override the error message in case of infeasible initial relaxation for easier debugging
 			return MILPsolution{}, INITIAL_RELAXATION_NOT_FEASIBLE
 		}
-		return MILPsolution{}, err
+		return MILPsolution{}, initialRelaxationSolution.err
 	}
+
+	//TODO: move initiate the logging tree with the solution to the initial relaxation as the root node
+	rootNode := newNode(initialRelaxationSolution)
+	tree := newLogTree(rootNode)
 
 	// If no integrality constraints are present, we can return the initial solution as-is if it is feasible.
 	// moreover, if the solution to the initial relaxation already satisfies all integrality constraints, we can present it as-is.
 	if feasibleForIP(p.integralityConstraints, initialRelaxationSolution.x) {
-
-		tree.addNode(initialRelaxationSolution, INITIAL_RX_FEASIBLE_FOR_IP)
 
 		return MILPsolution{
 			solution: initialRelaxationSolution,
@@ -437,68 +443,19 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 		}, nil
 	}
 
-	// store the initial relaxation solution as the first node in the logging tree
-	tree.addNode(initialRelaxationSolution, INITIAL_RELAXATION_LEGAL)
-
-	// Start the branch and bound procedure for this problem
-	var problemQueue []subProblem
-	var incumbent solution
-
-	// use the intial relaxation as the incumbent
-	incumbent = initialRelaxationSolution
-
-	// branch the inital relaxation and add its children to the queue
-	p1, p2 := incumbent.branch()
-	problemQueue = append(problemQueue, p1, p2)
-
-	for len(problemQueue) > 0 {
-
-		// pop a problem from the queue
-		var prob subProblem
-		var decision bnbDecision
-		prob, problemQueue = problemQueue[0], problemQueue[1:]
-
-		// solve the subproblem
-		candidate, err := prob.solve()
-
-		// decide on what to do with the solution:
-		switch {
-
-		case err != nil:
-			failure := translateSolverFailure(err)
-			decision = failure
-
-		// Note that the objective is a minimization.
-		case incumbent.z <= candidate.z:
-			// noop
-			decision = WORSE_THAN_INCUMBENT
-
-		case incumbent.z > candidate.z:
-			if feasibleForIP(p.integralityConstraints, candidate.x) {
-				// candidate is an improvement over the incumbent
-				incumbent = candidate
-				decision = BETTER_THAN_INCUMBENT_FEASIBLE
-			} else {
-				//candidate is an improvement over the incumbent, but not feasible.
-				//branch and add the descendants of this candidate to the queue
-				p1, p2 := candidate.branch()
-				problemQueue = append(problemQueue, p1, p2)
-				decision = BETTER_THAN_INCUMBENT_BRANCHING
-			}
-
-		default:
-			// this should never happen and thus should never fail silently.
-			// Leave this here in case anything is every screwed up in the case logic that would make this case reachable.
-			panic("unexpected case: could not decide what to do with branched subproblem")
-
-		}
-
-		// save this step to the log
-		tree.addNode(candidate, decision)
-
+	// build a function to check integer feasibility of the solution with
+	checker := func(x []float64) bool {
+		return feasibleForIP(p.integralityConstraints, x)
 	}
 
-	if !feasibleForIP(p.integralityConstraints, incumbent.x) {
+	// Start the branch and bound procedure for this problem
+	queue := newProblemQueue(checker)
+
+	// start the branch and bound procedure, presenting the solution to the initial relaxation as a candidate
+	incumbent := queue.start(initialRelaxationSolution, N_WORKERS)
+
+	// check if the solution is feasible considering the integrality constraints
+	if incumbent.err != nil || !feasibleForIP(p.integralityConstraints, incumbent.x) {
 		return MILPsolution{}, NO_INTEGER_FEASIBLE_SOLUTION
 	}
 
