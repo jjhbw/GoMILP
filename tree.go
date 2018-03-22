@@ -1,7 +1,11 @@
 package ilp
 
 import (
+	"fmt"
+	"math"
 	"sync"
+
+	"gonum.org/v1/gonum/optimize/convex/lp"
 )
 
 // The logTree datastructure is used as a log of the branch-and-bound algorithms decisions.
@@ -72,24 +76,45 @@ type enumerationTree struct {
 	// track the number of jobs (solving + checking) currently in progress
 	inProgress sync.WaitGroup
 
-	// arbitrary function to check solution feasibility with.
-	feasibilityChecker func([]float64) bool
+	// the root problem
+	rootProblem subProblem
 }
 
-func newEnumerationTree(checker func([]float64) bool) *enumerationTree {
+func newEnumerationTree(rootProblem subProblem) *enumerationTree {
 	return &enumerationTree{
 		// use a conservatively buffered channel to queue the unsolved problems in
 		active:     make(chan subProblem, 10),
 		candidates: make(chan solution, 10),
 
-		feasibilityChecker: checker,
+		rootProblem: rootProblem,
 	}
 }
 
-func (p *enumerationTree) startSearch(initialSoln solution, nworkers int) solution {
+func (p *enumerationTree) startSearch(nworkers int) (solution, *logTree) {
+
+	// solve the initial relaxation
+	initialRelaxationSolution := p.rootProblem.solve()
+	if initialRelaxationSolution.err != nil {
+
+		// override the error message in case of infeasible initial relaxation for easier debugging
+		if initialRelaxationSolution.err == lp.ErrInfeasible {
+			initialRelaxationSolution.err = INITIAL_RELAXATION_NOT_FEASIBLE
+		}
+		return initialRelaxationSolution, nil
+	}
+
+	// initiate the logging tree with the solution to the initial relaxation as the root node
+	rootNode := newNode(initialRelaxationSolution)
+	tree := newLogTree(rootNode)
+
+	// If no integrality constraints are present, we can return the initial solution as-is if it is feasible.
+	// moreover, if the solution to the initial relaxation already satisfies all integrality constraints, we can present it as-is.
+	if feasibleForIP(p.rootProblem.integralityConstraints, initialRelaxationSolution.x) {
+		return initialRelaxationSolution, tree
+	}
 
 	// set the initial relaxation solution as the incumbent
-	p.postCandidate(initialSoln)
+	p.postCandidate(initialRelaxationSolution)
 
 	// start the solve workers
 	for j := 0; j < nworkers; j++ {
@@ -106,7 +131,7 @@ func (p *enumerationTree) startSearch(initialSoln solution, nworkers int) soluti
 	close(p.active)
 	close(p.candidates)
 
-	return *p.incumbent
+	return *p.incumbent, tree
 
 }
 
@@ -169,7 +194,7 @@ func (p *enumerationTree) solutionChecker() {
 				// decision = WORSE_THAN_INCUMBENT
 
 			case p.incumbent.z > candidate.z:
-				if p.feasibilityChecker(candidate.x) {
+				if feasibleForIP(p.rootProblem.integralityConstraints, candidate.x) {
 					// candidate is an improvement over the incumbent
 					p.incumbent = &candidate
 					// decision = BETTER_THAN_INCUMBENT_FEASIBLE
@@ -194,4 +219,38 @@ func (p *enumerationTree) solutionChecker() {
 		p.inProgress.Done()
 	}
 
+}
+
+// takes a solver failure and determines whether it warrants a panic or whether it is expected.
+func translateSolverFailure(err error) bnbDecision {
+	for failure, decision := range expectedFailures {
+		if failure == err {
+			return decision
+		}
+	}
+	panic(err)
+}
+
+// check whether the solution vector is feasible in light of the integrality constraints for each variable
+func feasibleForIP(constraints []bool, solution []float64) bool {
+	if len(constraints) != len(solution) {
+		panic(fmt.Sprint("constraints vector and solution vector not of equal size: ", constraints, solution))
+	}
+	for i := range solution {
+		if constraints[i] {
+			if !isAllInteger(solution[i]) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func isAllInteger(in ...float64) bool {
+	for _, k := range in {
+		if !(k == math.Trunc(k)) {
+			return false
+		}
+	}
+	return true
 }
