@@ -449,10 +449,10 @@ func (p MILPproblem) Solve() (MILPsolution, error) {
 	}
 
 	// Start the branch and bound procedure for this problem
-	queue := newProblemQueue(checker)
+	enumTree := newEnumerationTree(checker)
 
 	// start the branch and bound procedure, presenting the solution to the initial relaxation as a candidate
-	incumbent := queue.start(initialRelaxationSolution, N_WORKERS)
+	incumbent := enumTree.startSearch(initialRelaxationSolution, N_WORKERS)
 
 	// check if the solution is feasible considering the integrality constraints
 	if incumbent.err != nil || !feasibleForIP(p.integralityConstraints, incumbent.x) {

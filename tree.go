@@ -64,7 +64,7 @@ func (n *node) setDecision(d bnbDecision) {
 	n.decision = d
 }
 
-type problemQueue struct {
+type enumerationTree struct {
 	active     chan subProblem
 	incumbent  *solution
 	candidates chan solution
@@ -76,8 +76,8 @@ type problemQueue struct {
 	feasibilityChecker func([]float64) bool
 }
 
-func newProblemQueue(checker func([]float64) bool) *problemQueue {
-	return &problemQueue{
+func newEnumerationTree(checker func([]float64) bool) *enumerationTree {
+	return &enumerationTree{
 		// use a conservatively buffered channel to queue the unsolved problems in
 		active:     make(chan subProblem, 10),
 		candidates: make(chan solution, 10),
@@ -86,7 +86,7 @@ func newProblemQueue(checker func([]float64) bool) *problemQueue {
 	}
 }
 
-func (p *problemQueue) start(initialSoln solution, nworkers int) solution {
+func (p *enumerationTree) startSearch(initialSoln solution, nworkers int) solution {
 
 	// set the initial relaxation solution as the incumbent
 	p.postCandidate(initialSoln)
@@ -110,13 +110,13 @@ func (p *problemQueue) start(initialSoln solution, nworkers int) solution {
 
 }
 
-func (p *problemQueue) postCandidate(s solution) {
+func (p *enumerationTree) postCandidate(s solution) {
 	// inform the manager that we added a candidate to the queue
 	p.inProgress.Add(1)
 	p.candidates <- s
 }
 
-func (p *problemQueue) enqueueProblems(probs ...subProblem) {
+func (p *enumerationTree) enqueueProblems(probs ...subProblem) {
 	for _, s := range probs {
 
 		p.inProgress.Add(1)
@@ -124,7 +124,7 @@ func (p *problemQueue) enqueueProblems(probs ...subProblem) {
 	}
 }
 
-func (p *problemQueue) solveWorker() {
+func (p *enumerationTree) solveWorker() {
 	for prob := range p.active {
 		// solve the subproblem
 		candidate := prob.solve()
@@ -138,7 +138,7 @@ func (p *problemQueue) solveWorker() {
 
 }
 
-func (p *problemQueue) solutionChecker() {
+func (p *enumerationTree) solutionChecker() {
 
 	for candidate := range p.candidates {
 
