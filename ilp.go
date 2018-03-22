@@ -7,22 +7,6 @@ import (
 	"gonum.org/v1/gonum/optimize/convex/lp"
 )
 
-// TODO: add more diverse MILP test cases with known solutions for the BNB routine.
-// TODO: primal vs dual simplex; any benefit?
-// TODO: how to deal with matrix degeneracy in subproblems? Currently handled the same way as infeasible subproblems.
-// TODO: in branched subproblems: intiate simplex at solution of parent? (using argument of lp.Simplex)
-// TODO: does fiddling with the simplex tolerance value improve outcomes?
-// TODO: Currently implemented only the simplest branching heuristics. Room for improvement.
-// TODO: ? if branching yields an infeasible or otherwise unsolveable problem, try with another branching heuristic or use the second-best option.
-// TODO: also fun: linear program preprocessing (MATLAB docs: https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html#btv20av)
-// TODO: Queue is currently FIFO. For depth-first exploration, we should go with a LIFO queue.
-// TODO: Add heuristic determining which node gets explored first (as we are using depth-first search) https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html?s_tid=gn_loc_drop#btzwtmv
-
-const (
-	// TODO: move to argument
-	N_WORKERS = 2
-)
-
 type milpProblem struct {
 	// 	minimize c^T * x
 	// s.t      G * x <= h

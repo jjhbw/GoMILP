@@ -8,6 +8,17 @@ import (
 	"gonum.org/v1/gonum/optimize/convex/lp"
 )
 
+// TODO: add more diverse MILP test cases with known solutions for the BNB routine.
+// TODO: primal vs dual simplex; any benefit?
+// TODO: how to deal with matrix degeneracy in subproblems? Currently handled the same way as infeasible subproblems.
+// TODO: in branched subproblems: intiate simplex at solution of parent? (using argument of lp.Simplex)
+// TODO: does fiddling with the simplex tolerance value improve outcomes?
+// TODO: Currently implemented only the simplest branching heuristics. Room for improvement.
+// TODO: ? if branching yields an infeasible or otherwise unsolveable problem, try with another branching heuristic or use the second-best option.
+// TODO: also fun: linear program preprocessing (MATLAB docs: https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html#btv20av)
+// TODO: Queue is currently FIFO. For depth-first exploration, we should go with a LIFO queue.
+// TODO: Add heuristic determining which node gets explored first (as we are using depth-first search) https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html?s_tid=gn_loc_drop#btzwtmv
+
 // The logTree datastructure is used as a log of the branch-and-bound algorithms decisions.
 // This code should not contain algorithm business logic to ensure loose coupling.
 // Note that we don't want to store references to subproblem datastructures, as this would preclude GC for these potentially large structs.
@@ -41,7 +52,7 @@ const (
 	BETTER_THAN_INCUMBENT_BRANCHING bnbDecision = "better than incumbent but infeasible, so branching"
 	BETTER_THAN_INCUMBENT_FEASIBLE  bnbDecision = "better than incumbent and feasible, so replacing incumbent"
 	INITIAL_RX_FEASIBLE_FOR_IP      bnbDecision = "initial relaxation is feasible for IP"
-	INITIAL_RELAXATION_LEGAL        bnbDecision = "initial relaxation is legal"
+	INITIAL_RELAXATION_LEGAL        bnbDecision = "initial relaxation is legal and thus set as initial incumbent"
 )
 
 func newLogTree(rootNode *node) *logTree {
@@ -155,59 +166,57 @@ func (p *enumerationTree) solveWorker() {
 
 }
 
+// TODO: store this decision somewhere
+
 func (p *enumerationTree) solutionChecker() {
+
+	// decide on what to do with the candidate solution:
+	var decision bnbDecision
 
 	for candidate := range p.candidates {
 
-		fmt.Println(candidate.x, candidate.err)
+		fmt.Println(candidate.x, candidate.z, candidate.err)
 
-		if p.incumbent == nil {
-			p.incumbent = &candidate
+		// retrieve the objective function value of the incumbent
+		// if no incumbent is set, return +Inf
+		incumbentZ := math.Inf(1)
+		if p.incumbent != nil {
+			incumbentZ = p.incumbent.z
+		}
 
-			// branch the inital relaxation and add its children to the queue
-			p1, p2 := p.incumbent.branch()
+		switch {
 
-			// add the new problems back into the queue
-			p.enqueueProblems(p1, p2)
+		case candidate.err != nil:
+			failure := translateSolverFailure(candidate.err)
+			decision = failure
 
-		} else {
-			// decide on what to do with the candidate solution:
-			// var decision bnbDecision
+		// Note that the objective is always minimization.
+		case incumbentZ <= candidate.z:
+			// noop
+			decision = WORSE_THAN_INCUMBENT
 
-			switch {
-
-			case candidate.err != nil:
-				// TODO: store this decision somewhere
-				translateSolverFailure(candidate.err)
-				// failure := translateSolverFailure(candidate.err)
-				// decision = failure
-
-			// Note that the objective is always minimization.
-			case p.incumbent.z <= candidate.z:
-				// noop
-				// decision = WORSE_THAN_INCUMBENT
-
-			case p.incumbent.z > candidate.z:
-				if feasibleForIP(p.rootProblem.integralityConstraints, candidate.x) {
-					// candidate is an improvement over the incumbent
-					p.incumbent = &candidate
-					// decision = BETTER_THAN_INCUMBENT_FEASIBLE
-				} else {
-					//candidate is an improvement over the incumbent, but not feasible.
-					//branch and add the descendants of this candidate to the queue
-					// decision = BETTER_THAN_INCUMBENT_BRANCHING
-					p1, p2 := candidate.branch()
-					p.enqueueProblems(p1, p2)
-
-				}
-
-			default:
-				// this should never happen and thus should never fail silently.
-				// Leave this here in case anything is every screwed up in the case logic that would make this case reachable.
-				panic("unexpected case: could not decide what to do with branched subproblem")
+		case incumbentZ > candidate.z:
+			if feasibleForIP(p.rootProblem.integralityConstraints, candidate.x) {
+				// candidate is an improvement over the incumbent
+				p.incumbent = &candidate
+				decision = BETTER_THAN_INCUMBENT_FEASIBLE
+			} else {
+				//candidate is an improvement over the incumbent, but not feasible.
+				//branch and add the descendants of this candidate to the queue
+				decision = BETTER_THAN_INCUMBENT_BRANCHING
+				p1, p2 := candidate.branch()
+				p.enqueueProblems(p1, p2)
 
 			}
+
+		default:
+			// this should never happen and thus should never fail silently.
+			// Leave this here in case anything is every screwed up in the case logic that would make this case reachable.
+			panic("unexpected case: could not decide what to do with branched subproblem")
+
 		}
+
+		fmt.Println(decision)
 
 		// inform the manager that we finished checking a candidate
 		p.inProgress.Done()
