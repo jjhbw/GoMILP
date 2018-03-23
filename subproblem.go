@@ -10,21 +10,22 @@ import (
 
 type subProblem struct {
 
-	// Variables represent the same as in the MILPproblem
+	// These variables represent the same as in the MILPproblem and should not be modified.
 	c []float64
 	A *mat.Dense
 	b []float64
 	G *mat.Dense
 	h []float64
 
-	// integrality constraints, inherited from parent.
+	// integrality constraints, inherited from parent problem and should not be modified.
 	integralityConstraints []bool
 
-	// additional inequality constraints for branch-and-bound
-	bnbConstraints []bnbConstraint
-
-	// heuristic to determine variable to branch on
+	// heuristic to determine variable to branch on. Inherited from parent and should not be modified.
 	branchHeuristic BranchHeuristic
+
+	// additional inequality constraints for branch-and-bound.
+	// Each step down in the search procedure adds a constraint.
+	bnbConstraints []bnbConstraint
 }
 
 type bnbConstraint struct {
@@ -45,7 +46,7 @@ type solution struct {
 
 // Retrieve all inequalities pertaining to this subProblem as a single G matrix and h vector.
 // That means the inequalities of the original problem description and the ones added during the branch-and-bound procedure.
-func (p subProblem) getInequalities() (*mat.Dense, []float64) {
+func (p subProblem) combineInequalities() (*mat.Dense, []float64) {
 
 	if len(p.bnbConstraints) > 0 {
 		// get the 'right sides' original problem inequality constraints
@@ -166,7 +167,7 @@ func convertToEqualities(c []float64, A *mat.Dense, b []float64, G *mat.Dense, h
 func (p subProblem) solve() solution {
 
 	// get the inequality constraints
-	G, h := p.getInequalities()
+	G, h := p.combineInequalities()
 
 	var z float64
 	var x []float64
@@ -183,32 +184,9 @@ func (p subProblem) solve() solution {
 			x = x[:len(p.c)]
 		}
 
-		//TODO: removeme
-		// if err == lp.ErrUnbounded {
-		// 	fmt.Println("UNBOUNDED- with inequalities")
-		// 	fmt.Println("c:")
-		// 	fmt.Println(c)
-		// 	fmt.Println("A:")
-		// 	fmt.Println(mat.Formatted(A))
-		// 	fmt.Println("b:")
-		// 	fmt.Println(b)
-		// 	// fmt.Println("h:")
-		// 	// fmt.Println(h)
-		// }
-
 	} else {
 		z, x, err = lp.Simplex(p.c, p.A, p.b, 0, nil)
 
-		//TODO: removeme
-		// if err == lp.ErrUnbounded {
-		// 	fmt.Println("UNBOUNDED")
-		// 	fmt.Println("c:")
-		// 	fmt.Println(p.c)
-		// 	fmt.Println("A:")
-		// 	fmt.Println(mat.Formatted(p.A))
-		// 	fmt.Println("b:")
-		// 	fmt.Println(p.b)
-		// }
 	}
 
 	return solution{
@@ -255,10 +233,10 @@ func (s solution) branch() (p1, p2 subProblem) {
 }
 
 // inherit everything from the parent problem, but append a new bnb constraint using a variable index and a max value for this variable.
-// Note that we also provide a multiplication factor for the to allow for sign changes
+// Note that we also provide a multiplication factor for the to allow for sign changes.
 func (p subProblem) getChild(branchOn int, factor float64, smallerOrEqualThan float64) subProblem {
 
-	child := p
+	child := p.copy()
 	newConstraint := bnbConstraint{
 		branchedVariable: branchOn,
 		hsharp:           smallerOrEqualThan,
@@ -268,11 +246,32 @@ func (p subProblem) getChild(branchOn int, factor float64, smallerOrEqualThan fl
 	// point to the index of the variable to branch on
 	newConstraint.gsharp[branchOn] = float64(factor)
 
-	// add the new constraint
+	// add the constraint
 	child.bnbConstraints = append(child.bnbConstraints, newConstraint)
 
 	return child
 
+}
+
+// Creating child subProblems like this has non-trivial memory implications.
+// Due to only containing reference types and pointers, the subProblem structs themselves are pretty lightweight.
+// We try to avoid copying of subProblem field values, so the pointer values and the arrays underpinning the slices are reused a lot throughout the procedures.
+// Make sure to run the race detector thoroughly after any modifications to this procedure.
+func (p *subProblem) copy() subProblem {
+	new := subProblem{
+		c:                      p.c,
+		A:                      p.A,
+		b:                      p.b,
+		G:                      p.G,
+		h:                      p.h,
+		bnbConstraints:         make([]bnbConstraint, len(p.bnbConstraints)),
+		integralityConstraints: p.integralityConstraints,
+	}
+
+	// As the bnbConstraints slice is modified with each branch-and-bound node, we copy it to prevent race conditions occurring in subProblems further downstream
+	copy(new.bnbConstraints, p.bnbConstraints)
+
+	return new
 }
 
 // Sanity check for the problems dimensions

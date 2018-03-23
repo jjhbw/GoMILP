@@ -136,7 +136,7 @@ func Test_subProblem_getInequalities(t *testing.T) {
 				h:              tt.fields.h,
 				bnbConstraints: tt.fields.bnbConstraints,
 			}
-			got, got1 := p.getInequalities()
+			got, got1 := p.combineInequalities()
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("subProblem.getInequalities() got = %v, want %v", got, tt.want)
 			}

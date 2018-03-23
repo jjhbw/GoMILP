@@ -86,14 +86,16 @@ type enumerationTree struct {
 func newEnumerationTree(rootProblem subProblem) *enumerationTree {
 	return &enumerationTree{
 		// use a conservatively buffered channel to queue the unsolved problems in
-		active:     make(chan subProblem, 10),
-		candidates: make(chan solution, 10),
+		active:     make(chan subProblem, 100),
+		candidates: make(chan solution, 1000),
 
 		rootProblem: rootProblem,
 	}
 }
 
 func (p *enumerationTree) startSearch(nworkers int) (solution, *logTree) {
+
+	fmt.Println("new problem")
 
 	// solve the initial relaxation
 	initialRelaxationSolution := p.rootProblem.solve()
@@ -129,6 +131,7 @@ func (p *enumerationTree) startSearch(nworkers int) (solution, *logTree) {
 
 	// wait until there are no longer any jobs active
 	p.inProgress.Wait()
+	fmt.Println("wait over")
 
 	// close the channels feeding the worker goroutines
 	close(p.active)
@@ -141,6 +144,7 @@ func (p *enumerationTree) startSearch(nworkers int) (solution, *logTree) {
 func (p *enumerationTree) postCandidate(s solution) {
 	// inform the manager that we added a candidate to the queue
 	p.inProgress.Add(1)
+	fmt.Println("evaluation work added")
 	p.candidates <- s
 }
 
@@ -148,7 +152,10 @@ func (p *enumerationTree) enqueueProblems(probs ...subProblem) {
 	for _, s := range probs {
 
 		p.inProgress.Add(1)
+		fmt.Println("solve work added")
+
 		p.active <- s
+
 	}
 }
 
@@ -162,6 +169,7 @@ func (p *enumerationTree) solveWorker() {
 
 		// tell the manager we finished a unit of work
 		p.inProgress.Done()
+		fmt.Println("solve work done")
 	}
 
 }
@@ -203,6 +211,7 @@ func (p *enumerationTree) solutionChecker() {
 				// We don't want to be the guy that creates a pointer to the iteration receiver ('candidate' in this case).
 				inc := candidate
 				p.incumbent = &inc
+				fmt.Println("incumbent ", p.incumbent)
 				// decision = BETTER_THAN_INCUMBENT_FEASIBLE
 
 			} else {
@@ -224,6 +233,7 @@ func (p *enumerationTree) solutionChecker() {
 
 		// inform the manager that we finished checking a candidate
 		p.inProgress.Done()
+		fmt.Println("evaluation work done")
 	}
 
 }

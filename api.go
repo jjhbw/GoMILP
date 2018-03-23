@@ -9,6 +9,7 @@ import (
 
 // TODO: set number of workers
 // TODO: set branching algorithm?
+// TODO: CI procedure should include race detector and test timeouts
 // TODO: sanity checks before converting Problem to a MILPproblem, such as NaN, Inf, and matrix shapes and variable bound domains
 // TODO: parsing of variable bounds to constraints does not deal with negative domains
 // TODO: GLPK testing is extremely convoluted due to its shitty API. Moreover, its output is sometimes plain wrong (doesnt diagnose unbounded problems).

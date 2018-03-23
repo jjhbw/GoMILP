@@ -83,7 +83,7 @@ func (p milpProblem) solve(workers int) (milpSolution, error) {
 	}
 
 	// check if the solution is feasible considering the integrality constraints
-	if feasibleForIP(p.integralityConstraints, incumbent.x) {
+	if !feasibleForIP(p.integralityConstraints, incumbent.x) {
 		return milpSolution{}, NO_INTEGER_FEASIBLE_SOLUTION
 	}
 

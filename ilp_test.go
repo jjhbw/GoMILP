@@ -68,6 +68,7 @@ func TestMilpProblem_Solve_Regression(t *testing.T) {
 		},
 	}
 
+	// use two solve worker goroutines
 	got, err := prob.solve(2)
 	assert.NoError(t, err)
 
@@ -216,7 +217,7 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 			},
 		},
 		{
-			// regression case leading a race condition
+			// regression case that led to a race condition due in-place modification of subProblem child constraints
 			name: "race regression: two integrality constraints and two initial inequality constraints.",
 			fields: fields{
 				c: []float64{1.7356332566545616, -0.2058339272568599, -1.051665297603944},
