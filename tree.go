@@ -73,6 +73,7 @@ func newNode(s solution) (n *node) {
 
 type enumerationTree struct {
 	active     chan subProblem
+	toSolve    chan subProblem
 	incumbent  *solution
 	candidates chan solution
 
@@ -85,9 +86,10 @@ type enumerationTree struct {
 
 func newEnumerationTree(rootProblem subProblem) *enumerationTree {
 	return &enumerationTree{
-		// use a conservatively buffered channel to queue the unsolved problems in
-		active:     make(chan subProblem, 100),
-		candidates: make(chan solution, 1000),
+		// do not build buffered channels: buffering is managed by a separate goroutine.
+		active:     make(chan subProblem),
+		toSolve:    make(chan subProblem),
+		candidates: make(chan solution),
 
 		rootProblem: rootProblem,
 	}
@@ -118,24 +120,26 @@ func (p *enumerationTree) startSearch(nworkers int) (solution, *logTree) {
 		return initialRelaxationSolution, tree
 	}
 
-	// set the initial relaxation solution as the incumbent
-	p.postCandidate(initialRelaxationSolution)
+	// start the buffer pump that manages transfers of subProblems from the buffer to the worker pool
+	go p.bufferPump()
+
+	// start the checker worker
+	go p.solutionChecker()
 
 	// start the solve workers
 	for j := 0; j < nworkers; j++ {
 		go p.solveWorker()
 	}
 
-	// start the checker worker
-	go p.solutionChecker()
+	// set the initial relaxation solution as the incumbent
+	p.postCandidate(initialRelaxationSolution)
 
 	// wait until there are no longer any jobs active
 	p.inProgress.Wait()
 	fmt.Println("wait over")
 
-	// close the channels feeding the worker goroutines
-	close(p.active)
-	close(p.candidates)
+	// close the channels feeding the buffer pump, which will close the other channels.
+	close(p.toSolve)
 
 	return *p.incumbent, tree
 
@@ -154,9 +158,57 @@ func (p *enumerationTree) enqueueProblems(probs ...subProblem) {
 		p.inProgress.Add(1)
 		fmt.Println("solve work added")
 
-		p.active <- s
+		p.toSolve <- s
 
 	}
+}
+
+// Bufferpump should run in a separate goroutine to prevent blocking of the communication between the solvers and the checker
+func (p *enumerationTree) bufferPump() {
+	var buffer []subProblem
+	var next subProblem
+
+	// key exploit of the statement below is the exploitation of nil channels. Select skips over these.
+	var output chan subProblem
+
+loopy:
+	for {
+		fmt.Println("loopy doopy")
+
+		select {
+
+		// if presented, store the piece of work in the buffer.
+		case msg, open := <-p.toSolve:
+			if !open {
+				// if the buffer channel is closed, we exit the loop
+				break loopy
+			}
+			buffer = append(buffer, msg)
+
+		// try to send a buffered job to the workers
+		// note that when next is nil, so is the output channel. A nil channel causes select to skip over this case.
+		case output <- next:
+			// pop the buffered job that we just sent (only if it WAS sent, ofcourse)
+			if len(buffer) > 1 {
+				buffer = buffer[1:]
+			} else {
+				buffer = nil
+			}
+
+		}
+
+		if len(buffer) > 0 {
+			next = buffer[0]
+			output = p.active
+		} else {
+			output = nil
+		}
+
+	}
+
+	fmt.Println("closing channels")
+	close(p.active)
+	close(p.candidates)
 }
 
 func (p *enumerationTree) solveWorker() {
@@ -187,7 +239,6 @@ func (p *enumerationTree) solutionChecker() {
 		// if no incumbent is set, return +Inf
 		incumbentZ := math.Inf(1)
 		if p.incumbent != nil {
-
 			incumbentZ = p.incumbent.z
 		}
 
