@@ -7,23 +7,6 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-// TODO: set number of workers
-// TODO: set branching algorithm?
-// TODO: CI procedure should include race detector and test timeouts
-// TODO: sanity checks before converting Problem to a MILPproblem, such as NaN, Inf, and matrix shapes and variable bound domains
-// TODO: parsing of variable bounds to constraints does not deal with negative domains
-// TODO: GLPK testing is extremely convoluted due to its shitty API. Moreover, its output is sometimes plain wrong (doesnt diagnose unbounded problems).
-// TODO: try to formulate more advanced constraints, like sets of values instead of just integrality?
-// Note that having integer sets as constraints is basically the same as having an integrality constraint, and a <= and >= bound.
-// Branching on this type of constraint can be optimized in a neat way (i.e. x>=0, x<=1, x<=0 ~-> x = 0)
-// TODO: dealing with variables that are unrestricted in sign (currently, each var is subject to a nonnegativity constraint)
-// TODO: make CLI and Problem serialization format for easy integration with R/python-based analysis tooling for debugging of mathematical properties.
-// TODO: explore options regarding branch-and-bound parallelism. See also computation of (pseudo-)costs and expensive branching heuristics.
-// TODO: make solver cancellable with a context by spinning the actual solving off into a goroutine.
-// TODO: add check for when adding a constraint: check whether an expression containing that variable already exists.
-// TODO: write benchmarks for time and space usage
-// TODO: small(?) performance gains may be made by switching dense matrix datastructures over to sparse for big problems
-
 // The abstract MILP problem representation
 type Problem struct {
 	// minimizes by default

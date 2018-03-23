@@ -8,21 +8,10 @@ import (
 	"gonum.org/v1/gonum/optimize/convex/lp"
 )
 
-// TODO: add more diverse MILP test cases with known solutions for the BNB routine.
-// TODO: primal vs dual simplex; any benefit?
-// TODO: how to deal with matrix degeneracy in subproblems? Currently handled the same way as infeasible subproblems.
-// TODO: in branched subproblems: intiate simplex at solution of parent? (using argument of lp.Simplex)
-// TODO: does fiddling with the simplex tolerance value improve outcomes?
-// TODO: Currently implemented only the simplest branching heuristics. Room for improvement.
-// TODO: ? if branching yields an infeasible or otherwise unsolveable problem, try with another branching heuristic or use the second-best option.
-// TODO: also fun: linear program preprocessing (MATLAB docs: https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html#btv20av)
-// TODO: Queue is currently FIFO. For depth-first exploration, we should go with a LIFO queue.
-// TODO: Add heuristic determining which node gets explored first (as we are using depth-first search) https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html?s_tid=gn_loc_drop#btzwtmv
-
 // The logTree datastructure is used as a log of the branch-and-bound algorithms decisions.
 // This code should not contain algorithm business logic to ensure loose coupling.
 // Note that we don't want to store references to subproblem datastructures, as this would preclude GC for these potentially large structs.
-// TODO: add methods and actual functionality
+// TODO: add methods and actual logging functionality
 // TODO: maybe use an interface for easier instrumentation during testing
 // Note that we should take care not to (indirectly) save a reference to the entire subProblem struct as this would be a potential GC nightmare.
 type logTree struct {
@@ -97,8 +86,6 @@ func newEnumerationTree(rootProblem subProblem) *enumerationTree {
 
 func (p *enumerationTree) startSearch(nworkers int) (solution, *logTree) {
 
-	fmt.Println("new problem")
-
 	// solve the initial relaxation
 	initialRelaxationSolution := p.rootProblem.solve()
 	if initialRelaxationSolution.err != nil {
@@ -136,7 +123,6 @@ func (p *enumerationTree) startSearch(nworkers int) (solution, *logTree) {
 
 	// wait until there are no longer any jobs active
 	p.inProgress.Wait()
-	fmt.Println("wait over")
 
 	// close the channels feeding the buffer pump, which will close the other channels.
 	close(p.toSolve)
@@ -148,7 +134,6 @@ func (p *enumerationTree) startSearch(nworkers int) (solution, *logTree) {
 func (p *enumerationTree) postCandidate(s solution) {
 	// inform the manager that we added a candidate to the queue
 	p.inProgress.Add(1)
-	fmt.Println("evaluation work added")
 	p.candidates <- s
 }
 
@@ -156,7 +141,6 @@ func (p *enumerationTree) enqueueProblems(probs ...subProblem) {
 	for _, s := range probs {
 
 		p.inProgress.Add(1)
-		fmt.Println("solve work added")
 
 		p.toSolve <- s
 
@@ -173,7 +157,6 @@ func (p *enumerationTree) bufferPump() {
 
 loopy:
 	for {
-		fmt.Println("loopy doopy")
 
 		select {
 
@@ -205,8 +188,6 @@ loopy:
 		}
 
 	}
-
-	fmt.Println("closing channels")
 	close(p.active)
 	close(p.candidates)
 }
@@ -221,7 +202,6 @@ func (p *enumerationTree) solveWorker() {
 
 		// tell the manager we finished a unit of work
 		p.inProgress.Done()
-		fmt.Println("solve work done")
 	}
 
 }
@@ -262,7 +242,6 @@ func (p *enumerationTree) solutionChecker() {
 				// We don't want to be the guy that creates a pointer to the iteration receiver ('candidate' in this case).
 				inc := candidate
 				p.incumbent = &inc
-				fmt.Println("incumbent ", p.incumbent)
 				// decision = BETTER_THAN_INCUMBENT_FEASIBLE
 
 			} else {
@@ -284,7 +263,6 @@ func (p *enumerationTree) solutionChecker() {
 
 		// inform the manager that we finished checking a candidate
 		p.inProgress.Done()
-		fmt.Println("evaluation work done")
 	}
 
 }
