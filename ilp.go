@@ -2,7 +2,6 @@ package ilp
 
 import (
 	"errors"
-	"fmt"
 
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize/convex/lp"
@@ -79,14 +78,12 @@ func (p milpProblem) solve(workers int) (milpSolution, error) {
 	// start the branch and bound procedure, presenting the solution to the initial relaxation as a candidate
 	incumbent, log := enumTree.startSearch(workers)
 
-	if incumbent.err == INITIAL_RELAXATION_NOT_FEASIBLE {
-		return milpSolution{}, INITIAL_RELAXATION_NOT_FEASIBLE
+	if incumbent.err != nil {
+		return milpSolution{}, incumbent.err
 	}
 
 	// check if the solution is feasible considering the integrality constraints
-	if incumbent.err != nil || !feasibleForIP(p.integralityConstraints, incumbent.x) {
-		fmt.Println("what the fucksticks")
-
+	if feasibleForIP(p.integralityConstraints, incumbent.x) {
 		return milpSolution{}, NO_INTEGER_FEASIBLE_SOLUTION
 	}
 

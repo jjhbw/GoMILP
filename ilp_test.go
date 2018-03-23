@@ -193,6 +193,50 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "One integrality constraint and one initial inequality constraint.",
+			fields: fields{
+				c: []float64{-1, -2, 1},
+				A: mat.NewDense(2, 3, []float64{
+					-2, 2.6, 2,
+					6, 1.1, 1,
+				}),
+				b: []float64{4, 9},
+				G: mat.NewDense(1, 3, []float64{
+					-1, 0, 0,
+				}),
+				h: []float64{-1},
+				integralityConstraints: []bool{false, false, true},
+			},
+			want: milpSolution{
+				solution: solution{
+					x: []float64{1.0674157303370786, 2.359550561797753, 0},
+					z: -5.786516853932584,
+				},
+			},
+		},
+		{
+			// regression case leading a race condition
+			name: "race regression: two integrality constraints and two initial inequality constraints.",
+			fields: fields{
+				c: []float64{1.7356332566545616, -0.2058339272568599, -1.051665297603944},
+				A: mat.NewDense(1, 3, []float64{
+					-0.7762132098737671, 1.42027949678888, -0.3304567624749696,
+				}),
+				b: []float64{-0.24703471683023603},
+				G: mat.NewDense(1, 3, []float64{
+					-0.6775235462631393, -1.9616379110849085, 1.9859192819811322,
+				}),
+				h: []float64{-0.041138108068992485},
+				integralityConstraints: []bool{true, true, true},
+			},
+			want: milpSolution{
+				solution: solution{
+				// x: []float64{1.0674157303370786, 2.359550561797753, 0},
+				// z: -5.786516853932584,
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 
@@ -222,7 +266,7 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 				// Note: we compare only the numerical solution variables
 				if !(reflect.DeepEqual(tt.want.solution.x, got.solution.x) && tt.want.solution.z == got.solution.z) {
 					t.Log(got)
-					t.Errorf("milpProblem.Solve() = %v, want %v", got, tt.want)
+					t.Errorf("milpProblem.Solve() = %v, want %v %v", got, tt.want.solution.x, tt.want.solution.z)
 				}
 			})
 		}
@@ -259,17 +303,24 @@ func testRandomMILP(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.
 		m := rnd.Intn(n-1) + 1  // m must be between 1 and n
 		prob := getRandomMILP(pZero, m, n, rnd)
 
-		// fmt.Println("c:")
-		// fmt.Println(prob.c)
-		// fmt.Println("A:")
-		// fmt.Println(mat.Formatted(prob.A))
-		// fmt.Println("b:")
-		// fmt.Println(prob.b)
+		fmt.Println("------ problem ", i)
+		fmt.Println("c:")
+		fmt.Println(prob.c)
+		fmt.Println("integrality:")
+		fmt.Println(prob.integralityConstraints)
+		fmt.Println("A:")
+		fmt.Println(mat.Formatted(prob.A))
+		fmt.Println("b:")
+		fmt.Println(prob.b)
+		fmt.Println("G:")
+		fmt.Println(mat.Formatted(prob.G))
+		fmt.Println("h:")
+		fmt.Println(prob.h)
 
 		// assign the solution to prevent the compiler from optimizing the call out
 		sol, err = prob.solve(workers)
 
-		// fmt.Println(solution.solution.x, solution.solution.z, err)
+		fmt.Println(sol.solution.x, sol.solution.z, err)
 	}
 	if err != nil {
 		t.Log(err)
