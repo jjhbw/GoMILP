@@ -1,6 +1,7 @@
 package ilp
 
 import (
+	"context"
 	"errors"
 
 	"gonum.org/v1/gonum/mat"
@@ -60,7 +61,7 @@ func (p milpProblem) toInitialSubProblem() subProblem {
 
 // Argument workers specifies how many workers should be used for traversing the enumeration tree.
 // This is mainly important from a space complexity point of view, as each worker is a potentially concurrent simplex algorithm.
-func (p milpProblem) solve(workers int) (milpSolution, error) {
+func (p milpProblem) solve(workers int, ctx context.Context) (milpSolution, error) {
 	if workers <= 0 {
 		panic("number of workers may not be lower than zero")
 	}
@@ -76,7 +77,7 @@ func (p milpProblem) solve(workers int) (milpSolution, error) {
 	enumTree := newEnumerationTree(initialRelaxation)
 
 	// start the branch and bound procedure, presenting the solution to the initial relaxation as a candidate
-	incumbent, log := enumTree.startSearch(workers)
+	incumbent, log := enumTree.startSearch(workers, ctx)
 
 	if incumbent.err != nil {
 		return milpSolution{}, incumbent.err

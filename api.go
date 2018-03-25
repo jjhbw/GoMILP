@@ -1,6 +1,7 @@
 package ilp
 
 import (
+	"context"
 	"fmt"
 	"math"
 
@@ -275,7 +276,8 @@ func (p *Problem) toSolveable() *milpProblem {
 }
 
 // Solve converts the abstract Problem to a MILPproblem, solves it, and parses its output.
-func (p *Problem) Solve() (*Solution, error) {
+// Context requires a context.Context as an argument to govern cancellation and solve deadlines.
+func (p *Problem) Solve(ctx context.Context) (*Solution, error) {
 	milp := p.toSolveable()
 
 	soln, err := milp.solve(p.workers)

@@ -1,6 +1,7 @@
 package ilp
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sync"
@@ -84,7 +85,7 @@ func newEnumerationTree(rootProblem subProblem) *enumerationTree {
 	}
 }
 
-func (p *enumerationTree) startSearch(nworkers int) (solution, *logTree) {
+func (p *enumerationTree) startSearch(nworkers int, ctx context.Context) (solution, *logTree) {
 
 	// solve the initial relaxation
 	initialRelaxationSolution := p.rootProblem.solve()
@@ -108,7 +109,7 @@ func (p *enumerationTree) startSearch(nworkers int) (solution, *logTree) {
 	}
 
 	// start the buffer pump that manages transfers of subProblems from the buffer to the worker pool
-	go p.bufferPump()
+	go p.bufferManager(ctx)
 
 	// start the checker worker
 	go p.solutionChecker()
@@ -147,12 +148,12 @@ func (p *enumerationTree) enqueueProblems(probs ...subProblem) {
 	}
 }
 
-// Bufferpump should run in a separate goroutine to prevent blocking of the communication between the solvers and the checker
-func (p *enumerationTree) bufferPump() {
+// bufferManager should run in a separate goroutine to prevent blocking of the communication between the solvers and the checker
+func (p *enumerationTree) bufferManager(ctx context.Context) {
 	var buffer []subProblem
 	var next subProblem
 
-	// key exploit of the statement below is the exploitation of nil channels. Select skips over these.
+	// key feature of the statement below is the exploitation of nil channels. Select skips over these.
 	var output chan subProblem
 
 loopy:
@@ -188,6 +189,8 @@ loopy:
 		}
 
 	}
+
+	// After the loop has been broken, we close the buffer channels.
 	close(p.active)
 	close(p.candidates)
 }

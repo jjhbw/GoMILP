@@ -1,6 +1,6 @@
 # GoMILP
 
-<u>*A work in progress.*</u> 
+<u>*A work in progress.*</u>
 
 The scope of this project is to build a simple, reliable MILP solver with an easy to use API in pure Go. Several alternatives ([1](https://github.com/draffensperger/golp),[2](https://github.com/lukpank/go-glpk),[3](https://github.com/costela/golpa)) exist in the form of CGO bindings with older LP solver libraries. While excellent pieces of software, I found their dependence on external libraries a big downside for usecases where maximum portability is key.
 
@@ -24,17 +24,17 @@ For testing, solutions to randomized MILPs are compared to solutions produced by
 # TODO list
 
 - [ ] prevent infinite recursion: branch-and-bound (and in particular this implementation) is known to have infinitely recursive edge cases. Make solver cancellable (ideally using the [context](https://golang.org/pkg/context/) API) to exit these cases.
+- [ ] Queue is currently FIFO. For depth-first exploration, we should go with a LIFO queue.
+- [ ] Add heuristic determining which node gets explored first (as we are using depth-first search) https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html?s_tid=gn_loc_drop#btzwtmv
 - [ ] Log decisions of branch-and-bound procedure in a tree structure for visualisation and debugging purposes.
 - [ ] config API: set number of workers and choice branching heuristic?
 - [ ] add more diverse MILP test cases with known solutions.
 - [ ] how to deal with matrix degeneracy in subproblems? Currently handled the same way as infeasible subproblems.
 - [ ] in branched subproblems: intiate simplex at solution of parent? (using argument of lp.Simplex)
 - [ ] does fiddling with the simplex tolerance value improve outcomes?
-- [ ] Currently implemented only the simplest branching heuristics. Room for improvement such as expensive branching heuristics like (pseudo-)costs.
+- [ ] Currently implemented only the simplest branching heuristics. Room for improvement such as expensive branching heuristics like node (pseudo-)costs.
 - [ ] Enumeration tree exploration heuristics: use priority queue based on heuristics like total path cost or a best-first approach based on earlier solutions.
-- [ ] also fun: linear program preprocessing (MATLAB docs: https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html#btv20av)
-- [ ] Queue is currently FIFO. For depth-first exploration, we should go with a LIFO queue.
-- [ ] Add heuristic determining which node gets explored first (as we are using depth-first search) https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html?s_tid=gn_loc_drop#btzwtmv
+- [ ] also fun: linear program preprocessing (MATLAB docs: https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html#btv20av). This may shave off time and space complexity when applying the Simplex solver on the subproblems.
 
 
 - [ ] CI procedure should include race detector and test timeouts
