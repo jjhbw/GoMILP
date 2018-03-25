@@ -46,25 +46,26 @@ func TestInitialSubproblemSolve(t *testing.T) {
 	assert.NoError(t, solution.err)
 }
 
-// a regression test case for a race condition occuring in the solver
-func TestMilpProblem_Solve_Regression(t *testing.T) {
+// A regression test case for a potential infinite recursion in the branch-and-bound procedure.
+func TestMilpProblem_Solve_InfiniteRecursion_Regression(t *testing.T) {
 
 	prob := milpProblem{
-		c: []float64{-1, -2, 0, 0},
-		A: mat.NewDense(2, 4, []float64{
-			-1, 2.6, 1, 0,
-			3, 1.1, 0, 1,
+		c: []float64{1.7356332566545616, -0.2058339272568599, -1.051665297603944},
+		A: mat.NewDense(1, 3, []float64{
+			-0.7762132098737671, 1.42027949678888, -0.3304567624749696,
 		}),
-		b: []float64{4, 9},
-		G: nil,
-		h: nil,
-		integralityConstraints: []bool{false, true, false, false},
+		b: []float64{-0.24703471683023603},
+		G: mat.NewDense(1, 3, []float64{
+			-0.6775235462631393, -1.9616379110849085, 1.9859192819811322,
+		}),
+		h: []float64{-0.041138108068992485},
+		integralityConstraints: []bool{true, true, true},
 	}
 
 	want := milpSolution{
 		solution: solution{
-			x: []float64{2.2666666666666666, 2, 1.0666666666666664, 0},
-			z: -6.266666666666667,
+		// x: []float64{2.2666666666666666, 2, 1.0666666666666664, 0},
+		// z: -6.266666666666667,
 		},
 	}
 
@@ -218,7 +219,8 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 		},
 		{
 			// regression case that led to a race condition due in-place modification of subProblem child constraints
-			name: "race regression: two integrality constraints and two initial inequality constraints.",
+			// and to infinite recursion in the branch-and-bound procedure
+			name: "infinite recursion regression: two integrality constraints and two initial inequality constraints.",
 			fields: fields{
 				c: []float64{1.7356332566545616, -0.2058339272568599, -1.051665297603944},
 				A: mat.NewDense(1, 3, []float64{
