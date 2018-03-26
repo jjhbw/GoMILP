@@ -133,8 +133,6 @@ func (p *enumerationTree) startSearch(nworkers int, ctx context.Context) (soluti
 }
 
 func (p *enumerationTree) postCandidate(s solution) {
-	// inform the manager that we added a candidate to the queue
-	p.inProgress.Add(1)
 	p.candidates <- s
 }
 
@@ -202,9 +200,6 @@ func (p *enumerationTree) solveWorker() {
 
 		// present the candidate solution
 		p.postCandidate(candidate)
-
-		// tell the manager we finished a unit of work
-		p.inProgress.Done()
 	}
 
 }
