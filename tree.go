@@ -9,29 +9,7 @@ import (
 	"gonum.org/v1/gonum/optimize/convex/lp"
 )
 
-// The logTree datastructure is used as a log of the branch-and-bound algorithms decisions.
-// This code should not contain algorithm business logic to ensure loose coupling.
-// Note that we don't want to store references to subproblem datastructures, as this would preclude GC for these potentially large structs.
-// TODO: add methods and actual logging functionality
-// TODO: maybe use an interface for easier instrumentation during testing
-// Note that we should take care not to (indirectly) save a reference to the entire subProblem struct as this would be a potential GC nightmare.
-type logTree struct {
-	root *node
-}
-
-type node struct {
-
-	// a summary of the solution of this node
-	x []float64
-	z float64
-
-	// the decision that took place at this node
-	decision bnbDecision
-
-	// the node's children, if any.
-	children []*node
-}
-
+// TODO: these decisions are currently unused. Use them to implement logging.
 // Branch-and-bound decisions that can be made by the algorithm
 type bnbDecision string
 
@@ -44,22 +22,6 @@ const (
 	INITIAL_RX_FEASIBLE_FOR_IP      bnbDecision = "initial relaxation is feasible for IP"
 	INITIAL_RELAXATION_LEGAL        bnbDecision = "initial relaxation is legal and thus set as initial incumbent"
 )
-
-func newLogTree(rootNode *node) *logTree {
-	return &logTree{
-		root: rootNode,
-	}
-}
-
-// Note that we do not save a reference to the entire solution struct as this would be a potential GC nightmare.
-func newNode(s solution) (n *node) {
-	n = &node{
-		x:        s.x,
-		z:        s.z,
-		children: []*node{},
-	}
-	return
-}
 
 type enumerationTree struct {
 	active     chan subProblem
@@ -85,27 +47,24 @@ func newEnumerationTree(rootProblem subProblem) *enumerationTree {
 	}
 }
 
-func (p *enumerationTree) startSearch(nworkers int, ctx context.Context) (*solution, *logTree) {
+func (p *enumerationTree) startSearch(nworkers int, ctx context.Context) *solution {
 
 	// solve the initial relaxation
 	initialRelaxationSolution := p.rootProblem.solve()
+
 	if initialRelaxationSolution.err != nil {
 
 		// override the error message in case of infeasible initial relaxation for easier debugging
 		if initialRelaxationSolution.err == lp.ErrInfeasible {
 			initialRelaxationSolution.err = INITIAL_RELAXATION_NOT_FEASIBLE
 		}
-		return &initialRelaxationSolution, nil
+		return &initialRelaxationSolution
 	}
-
-	// initiate the logging tree with the solution to the initial relaxation as the root node
-	rootNode := newNode(initialRelaxationSolution)
-	tree := newLogTree(rootNode)
 
 	// If no integrality constraints are present, we can return the initial solution as-is if it is feasible.
 	// moreover, if the solution to the initial relaxation already satisfies all integrality constraints, we can present it as-is.
 	if feasibleForIP(p.rootProblem.integralityConstraints, initialRelaxationSolution.x) {
-		return &initialRelaxationSolution, tree
+		return &initialRelaxationSolution
 	}
 
 	// start the buffer pump that manages transfers of subProblems from the buffer to the worker pool
@@ -127,7 +86,6 @@ mainWait:
 			p.checkSolution(candidate)
 			p.workDone()
 		case <-ctx.Done():
-			//TODO: log that the context timeout expired
 			break mainWait
 		}
 	}
@@ -136,7 +94,7 @@ mainWait:
 	close(p.toSolve)
 
 	// The incumbent can still be nil. This can happen for instance when the context stops the search early.
-	return p.incumbent, tree
+	return p.incumbent
 
 }
 

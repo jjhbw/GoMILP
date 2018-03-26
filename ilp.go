@@ -27,7 +27,6 @@ type milpProblem struct {
 }
 
 type milpSolution struct {
-	log      *logTree
 	solution solution
 }
 
@@ -77,7 +76,7 @@ func (p milpProblem) solve(workers int, ctx context.Context) (milpSolution, erro
 	enumTree := newEnumerationTree(initialRelaxation)
 
 	// start the branch and bound procedure, presenting the solution to the initial relaxation as a candidate
-	incumbent, log := enumTree.startSearch(workers, ctx)
+	incumbent := enumTree.startSearch(workers, ctx)
 
 	// if the solver timed out, we return that as an error, along with the best-effort incumbent solution.
 	if timedOut := ctx.Err(); timedOut != nil {
@@ -87,22 +86,25 @@ func (p milpProblem) solve(workers int, ctx context.Context) (milpSolution, erro
 		}
 		return milpSolution{
 			solution: val,
-			log:      log,
 		}, timedOut
+	}
+
+	// Check if a nil solution has been returned
+	if incumbent == nil {
+		return milpSolution{}, NO_INTEGER_FEASIBLE_SOLUTION
 	}
 
 	if incumbent.err != nil {
 		return milpSolution{}, incumbent.err
 	}
 
-	// Moreover, we check if the solution is feasible considering the integrality constraints.
+	// Check if the solution is feasible considering the integrality constraints.
 	if !feasibleForIP(p.integralityConstraints, incumbent.x) {
 		return milpSolution{}, NO_INTEGER_FEASIBLE_SOLUTION
 	}
 
 	return milpSolution{
 		solution: *incumbent,
-		log:      log,
 	}, nil
 
 }

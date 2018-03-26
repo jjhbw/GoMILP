@@ -85,6 +85,43 @@ func TestMilpProblem_Solve_InfiniteRecursion_Regression(t *testing.T) {
 
 }
 
+// a regression test for nil returns of the search procedure that caused a panic
+func TestMilpProblem_Solve_NilReturn_Regression(t *testing.T) {
+
+	prob := milpProblem{
+		c: []float64{0.6572445982216386, -1.2787102180406373, -0.714364219639056, 0.4294876505980715, -1.2694040908754067},
+		A: mat.NewDense(3, 5, []float64{
+			-1.150658083043829, 0.6742357592398329, 0.05482227950158375, -0.4402215293563758, -0.42514963905670267,
+			1.8805693836928625, 1.2321077204169477, -1.4072763551877006, 0.32105052839669324, 0.8175654516598202,
+			-1.2427589013990952, 0.8480328391203368, 1.8893229216030778, 1.6284926471665957, -0.6924382873998646,
+		}),
+		b: []float64{-1.6441336258376302, 1.7731638122722604, 0.41457840377809935},
+		G: mat.NewDense(3, 5, []float64{
+			0.5833490684770126, -0.7706968790319841, 0.6630978893449531, -0.560670828793711, -0.9502215220573013,
+			-0.25962903857408626, -0.613464243927484, 0.8559661237279594, -2.5511417937898293, 0.8262232497486882,
+			-1.136768995071479, -0.5756455306742008, -1.372457014240165, 0.21778519481503805, 2.7692491194887667,
+		}),
+		h: []float64{0.12870156802034122, -0.3689382882114889, 0.1658000515068819},
+		integralityConstraints: []bool{true, false, false, true, false},
+	}
+
+	want := milpSolution{}
+
+	// solve the problem with 2 workers and a one-second timeout
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	got, err := prob.solve(2, ctx)
+
+	assert.Error(t, err)
+	assert.Equal(t, err, context.DeadlineExceeded)
+
+	if !(reflect.DeepEqual(want.solution.x, got.solution.x) && want.solution.z == got.solution.z) {
+		t.Log(got)
+		t.Errorf("milpProblem.Solve() = %v, want %v", got, want)
+	}
+
+}
+
 func TestMilpProblem_SolveMultiple(t *testing.T) {
 	type fields struct {
 		c                      []float64
@@ -329,11 +366,11 @@ func testRandomMILP(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.
 		defer cancel()
 		sol, err = prob.solve(workers, ctx)
 
-		fmt.Println(sol.solution.x, sol.solution.z, err)
-	}
-	if err != nil {
-		t.Log(err)
-		t.Log(sol.solution)
+		if err != nil {
+			t.Log(err)
+			t.Log(sol.solution)
+		}
+
 	}
 
 }

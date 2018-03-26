@@ -23,10 +23,10 @@ For testing, solutions to randomized MILPs are compared to solutions produced by
 
 # TODO list
 
-- [ ] prevent infinite recursion: branch-and-bound (and in particular this implementation) is known to have infinitely recursive edge cases. Make solver cancellable (ideally using the [context](https://golang.org/pkg/context/) API) to exit these cases.
+- [ ] Deal with infeasible subproblems created after branching on a particular integrality-constrained variable of an LP feasible problem. Should this be a noop (currently) or should branching be retried on another integer constrained variable?
 - [ ] Queue is currently FIFO. For depth-first exploration, we should go with a LIFO queue.
 - [ ] Add heuristic determining which node gets explored first (as we are using depth-first search) https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html?s_tid=gn_loc_drop#btzwtmv
-- [ ] Log decisions of branch-and-bound procedure in a tree structure for visualisation and debugging purposes.
+- [ ] Log decisions of branch-and-bound procedure in a tree structure for visualisation and debugging purposes. Use optional instrumentation of the BnB procedure for this. Perhaps using a callback or an interface object as an argument to `startSearch()`.
 - [ ] config API: set number of workers and choice branching heuristic?
 - [ ] add more diverse MILP test cases with known solutions.
 - [ ] Maybe make context.Context optional only in the top-level API
