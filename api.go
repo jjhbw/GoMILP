@@ -280,7 +280,7 @@ func (p *Problem) toSolveable() *milpProblem {
 func (p *Problem) Solve(ctx context.Context) (*Solution, error) {
 	milp := p.toSolveable()
 
-	soln, err := milp.solve(p.workers)
+	soln, err := milp.solve(p.workers, ctx)
 
 	if err != nil {
 		return nil, err

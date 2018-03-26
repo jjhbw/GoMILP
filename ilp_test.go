@@ -1,10 +1,12 @@
 package ilp
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"gonum.org/v1/gonum/mat"
@@ -21,7 +23,11 @@ func TestmilpProblem_Solve_Smoke_NoInteger(t *testing.T) {
 		integralityConstraints: []bool{false, false, false, false},
 	}
 
-	solution, err := prob.solve(1)
+	// solve the problem with 1 worker and a one-second timeout
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	solution, err := prob.solve(1, ctx)
+
 	assert.NoError(t, err)
 	assert.Equal(t, float64(-8), solution.solution.z)
 	assert.Equal(t, []float64{2, 3, 0, 0}, solution.solution.x)
@@ -62,16 +68,15 @@ func TestMilpProblem_Solve_InfiniteRecursion_Regression(t *testing.T) {
 		integralityConstraints: []bool{true, true, true},
 	}
 
-	want := milpSolution{
-		solution: solution{
-		// x: []float64{2.2666666666666666, 2, 1.0666666666666664, 0},
-		// z: -6.266666666666667,
-		},
-	}
+	want := milpSolution{}
 
-	// use two solve worker goroutines
-	got, err := prob.solve(2)
-	assert.NoError(t, err)
+	// solve the problem with 2 workers and a one-second timeout
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	got, err := prob.solve(2, ctx)
+
+	assert.Error(t, err)
+	assert.Equal(t, err, context.DeadlineExceeded)
 
 	if !(reflect.DeepEqual(want.solution.x, got.solution.x) && want.solution.z == got.solution.z) {
 		t.Log(got)
@@ -233,12 +238,8 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 				h: []float64{-0.041138108068992485},
 				integralityConstraints: []bool{true, true, true},
 			},
-			want: milpSolution{
-				solution: solution{
-				// x: []float64{1.0674157303370786, 2.359550561797753, 0},
-				// z: -5.786516853932584,
-				},
-			},
+			want:    milpSolution{},
+			wantErr: context.DeadlineExceeded,
 		},
 	}
 	for _, tt := range tests {
@@ -258,8 +259,10 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 					integralityConstraints: tt.fields.integralityConstraints,
 				}
 
-				// solve the problem with 'i' workers
-				got, err := p.solve(i)
+				// solve the problem with 'i' workers and a one-second timeout
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				got, err := p.solve(i, ctx)
 				if err != tt.wantErr {
 					t.Log(got)
 					t.Errorf("milpProblem.Solve() error = %v, wantErr %v", err, tt.wantErr)
@@ -321,7 +324,10 @@ func testRandomMILP(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.
 		fmt.Println(prob.h)
 
 		// assign the solution to prevent the compiler from optimizing the call out
-		sol, err = prob.solve(workers)
+		// note that we are adding a one-second timeout
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		sol, err = prob.solve(workers, ctx)
 
 		fmt.Println(sol.solution.x, sol.solution.z, err)
 	}

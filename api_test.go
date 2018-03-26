@@ -1,6 +1,7 @@
 package ilp
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -115,11 +116,12 @@ func TestProblem_Solve(t *testing.T) {
 		integralityConstraints: []bool{false, false, false, false},
 	}
 
-	//Note:  do not compare pointers
+	// check that the conversion was successful
+	// Note:  do not compare pointers
 	assert.Equal(t, expected, *solveable)
 
-	// solve the problem directly
-	soln, err := prob.Solve()
+	// solve the problem directly (without any timeouts)
+	soln, err := prob.Solve(context.Background())
 	assert.NoError(t, err)
 
 	getVal := func(n string) float64 {

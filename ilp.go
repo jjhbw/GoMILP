@@ -79,17 +79,29 @@ func (p milpProblem) solve(workers int, ctx context.Context) (milpSolution, erro
 	// start the branch and bound procedure, presenting the solution to the initial relaxation as a candidate
 	incumbent, log := enumTree.startSearch(workers, ctx)
 
+	// if the solver timed out, we return that as an error, along with the best-effort incumbent solution.
+	if timedOut := ctx.Err(); timedOut != nil {
+		var val solution
+		if incumbent != nil {
+			val = *incumbent
+		}
+		return milpSolution{
+			solution: val,
+			log:      log,
+		}, timedOut
+	}
+
 	if incumbent.err != nil {
 		return milpSolution{}, incumbent.err
 	}
 
-	// check if the solution is feasible considering the integrality constraints
+	// Moreover, we check if the solution is feasible considering the integrality constraints.
 	if !feasibleForIP(p.integralityConstraints, incumbent.x) {
 		return milpSolution{}, NO_INTEGER_FEASIBLE_SOLUTION
 	}
 
 	return milpSolution{
-		solution: incumbent,
+		solution: *incumbent,
 		log:      log,
 	}, nil
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"sync"
+	"sync/atomic"
 
 	"gonum.org/v1/gonum/optimize/convex/lp"
 )
@@ -68,7 +68,7 @@ type enumerationTree struct {
 	candidates chan solution
 
 	// track the number of jobs (solving + checking) currently in progress
-	inProgress sync.WaitGroup
+	workInProgress int64
 
 	// the root problem
 	rootProblem subProblem
@@ -85,7 +85,7 @@ func newEnumerationTree(rootProblem subProblem) *enumerationTree {
 	}
 }
 
-func (p *enumerationTree) startSearch(nworkers int, ctx context.Context) (solution, *logTree) {
+func (p *enumerationTree) startSearch(nworkers int, ctx context.Context) (*solution, *logTree) {
 
 	// solve the initial relaxation
 	initialRelaxationSolution := p.rootProblem.solve()
@@ -95,7 +95,7 @@ func (p *enumerationTree) startSearch(nworkers int, ctx context.Context) (soluti
 		if initialRelaxationSolution.err == lp.ErrInfeasible {
 			initialRelaxationSolution.err = INITIAL_RELAXATION_NOT_FEASIBLE
 		}
-		return initialRelaxationSolution, nil
+		return &initialRelaxationSolution, nil
 	}
 
 	// initiate the logging tree with the solution to the initial relaxation as the root node
@@ -105,30 +105,38 @@ func (p *enumerationTree) startSearch(nworkers int, ctx context.Context) (soluti
 	// If no integrality constraints are present, we can return the initial solution as-is if it is feasible.
 	// moreover, if the solution to the initial relaxation already satisfies all integrality constraints, we can present it as-is.
 	if feasibleForIP(p.rootProblem.integralityConstraints, initialRelaxationSolution.x) {
-		return initialRelaxationSolution, tree
+		return &initialRelaxationSolution, tree
 	}
 
 	// start the buffer pump that manages transfers of subProblems from the buffer to the worker pool
-	go p.bufferManager(ctx)
-
-	// start the checker worker
-	go p.solutionChecker()
+	go p.bufferManager()
 
 	// start the solve workers
 	for j := 0; j < nworkers; j++ {
 		go p.solveWorker()
 	}
 
-	// set the initial relaxation solution as the incumbent
-	p.postCandidate(initialRelaxationSolution)
+	// check the initial relaxation solution
+	p.checkSolution(initialRelaxationSolution)
 
-	// wait until there are no longer any jobs active
-	p.inProgress.Wait()
+	// listen for new candidates to check but also keep an eye out for any cancellation signals.
+mainWait:
+	for atomic.LoadInt64(&p.workInProgress) > 0 {
+		select {
+		case candidate := <-p.candidates:
+			p.checkSolution(candidate)
+			p.workDone()
+		case <-ctx.Done():
+			//TODO: log that the context timeout expired
+			break mainWait
+		}
+	}
 
-	// close the channels feeding the buffer pump, which will close the other channels.
+	// close the channels feeding the buffer pump, which will cause the downstream goroutines to return.
 	close(p.toSolve)
 
-	return *p.incumbent, tree
+	// The incumbent can still be nil. This can happen for instance when the context stops the search early.
+	return p.incumbent, tree
 
 }
 
@@ -139,15 +147,23 @@ func (p *enumerationTree) postCandidate(s solution) {
 func (p *enumerationTree) enqueueProblems(probs ...subProblem) {
 	for _, s := range probs {
 
-		p.inProgress.Add(1)
+		p.workAdded()
 
 		p.toSolve <- s
 
 	}
 }
 
+func (p *enumerationTree) workAdded() {
+	atomic.AddInt64(&p.workInProgress, 1)
+}
+
+func (p *enumerationTree) workDone() {
+	atomic.AddInt64(&p.workInProgress, -1)
+}
+
 // bufferManager should run in a separate goroutine to prevent blocking of the communication between the solvers and the checker
-func (p *enumerationTree) bufferManager(ctx context.Context) {
+func (p *enumerationTree) bufferManager() {
 	var buffer []subProblem
 	var next subProblem
 
@@ -190,7 +206,6 @@ loopy:
 
 	// After the loop has been broken, we close the buffer channels.
 	close(p.active)
-	close(p.candidates)
 }
 
 func (p *enumerationTree) solveWorker() {
@@ -205,62 +220,51 @@ func (p *enumerationTree) solveWorker() {
 }
 
 // TODO: store each decision somewhere
+func (p *enumerationTree) checkSolution(candidate solution) {
 
-func (p *enumerationTree) solutionChecker() {
+	// decide on what to do with the candidate solution:
+	// var decision bnbDecision
 
-	for candidate := range p.candidates {
+	// retrieve the objective function value of the incumbent
+	// if no incumbent is set, return +Inf
+	incumbentZ := math.Inf(1)
+	if p.incumbent != nil {
+		incumbentZ = p.incumbent.z
+	}
 
-		// decide on what to do with the candidate solution:
-		// var decision bnbDecision
+	switch {
 
-		// retrieve the objective function value of the incumbent
-		// if no incumbent is set, return +Inf
-		incumbentZ := math.Inf(1)
-		if p.incumbent != nil {
-			incumbentZ = p.incumbent.z
-		}
+	case candidate.err != nil:
+		translateSolverFailure(candidate.err)
+		// failure := translateSolverFailure(candidate.err)
+		// decision = failure
 
-		switch {
+	// Note that the objective is always minimization.
+	case incumbentZ <= candidate.z:
+		// noop
+		// decision = WORSE_THAN_INCUMBENT
 
-		case candidate.err != nil:
-			translateSolverFailure(candidate.err)
-			// failure := translateSolverFailure(candidate.err)
-			// decision = failure
+	case incumbentZ > candidate.z:
+		if feasibleForIP(p.rootProblem.integralityConstraints, candidate.x) {
+			// Candidate is an improvement over the incumbent
+			p.incumbent = &candidate
+			// decision = BETTER_THAN_INCUMBENT_FEASIBLE
 
-		// Note that the objective is always minimization.
-		case incumbentZ <= candidate.z:
-			// noop
-			// decision = WORSE_THAN_INCUMBENT
+		} else {
 
-		case incumbentZ > candidate.z:
-			if feasibleForIP(p.rootProblem.integralityConstraints, candidate.x) {
-				// Candidate is an improvement over the incumbent
-
-				// Note that we first take the value of candidate before indirecting again.
-				// We don't want to be the guy that creates a pointer to the iteration receiver ('candidate' in this case).
-				inc := candidate
-				p.incumbent = &inc
-				// decision = BETTER_THAN_INCUMBENT_FEASIBLE
-
-			} else {
-
-				//candidate is an improvement over the incumbent, but not feasible.
-				//branch and add the descendants of this candidate to the queue
-				// decision = BETTER_THAN_INCUMBENT_BRANCHING
-				p1, p2 := candidate.branch()
-				p.enqueueProblems(p1, p2)
-
-			}
-
-		default:
-			// this should never happen and thus should never fail silently.
-			// Leave this here in case anything is every screwed up in the case logic that would make this case reachable.
-			panic("unexpected case: could not decide what to do with branched subproblem")
+			//candidate is an improvement over the incumbent, but not feasible.
+			//branch and add the descendants of this candidate to the queue
+			// decision = BETTER_THAN_INCUMBENT_BRANCHING
+			p1, p2 := candidate.branch()
+			p.enqueueProblems(p1, p2)
 
 		}
 
-		// inform the manager that we finished checking a candidate
-		p.inProgress.Done()
+	default:
+		// this should never happen and thus should never fail silently.
+		// Leave this here in case anything is every screwed up in the case logic that would make this case reachable.
+		panic("unexpected case: could not decide what to do with branched subproblem")
+
 	}
 
 }

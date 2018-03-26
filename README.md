@@ -29,6 +29,8 @@ For testing, solutions to randomized MILPs are compared to solutions produced by
 - [ ] Log decisions of branch-and-bound procedure in a tree structure for visualisation and debugging purposes.
 - [ ] config API: set number of workers and choice branching heuristic?
 - [ ] add more diverse MILP test cases with known solutions.
+- [ ] Maybe make context.Context optional only in the top-level API
+- [ ] Low-level solver cancellation plumbing may be better off governed by our own cancellation hooks instead of the bulky context API. On the other hand, context has a nice set of errors defined on deadline exceeded etc. Replacing it may not be worth it.
 - [ ] how to deal with matrix degeneracy in subproblems? Currently handled the same way as infeasible subproblems.
 - [ ] in branched subproblems: intiate simplex at solution of parent? (using argument of lp.Simplex)
 - [ ] does fiddling with the simplex tolerance value improve outcomes?
