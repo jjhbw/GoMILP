@@ -275,9 +275,9 @@ func (p *Problem) toSolveable() *milpProblem {
 	}
 }
 
-// Solve converts the abstract Problem to a MILPproblem, solves it, and parses its output.
+// SolveWithCtx converts the abstract Problem to a MILPproblem, solves it, and parses its output.
 // Context requires a context.Context as an argument to govern cancellation and solve deadlines.
-func (p *Problem) Solve(ctx context.Context) (*Solution, error) {
+func (p *Problem) SolveWithCtx(ctx context.Context) (*Solution, error) {
 	milp := p.toSolveable()
 
 	soln, err := milp.solve(p.workers, ctx)
@@ -308,6 +308,14 @@ func (p *Problem) Solve(ctx context.Context) (*Solution, error) {
 	}
 
 	return &solution, nil
+
+}
+
+// Solve converts the abstract Problem to a MILPproblem, solves it, and parses its output.
+// It does not time out.
+func (p *Problem) Solve() (*Solution, error) {
+
+	return p.SolveWithCtx(context.Background())
 
 }
 

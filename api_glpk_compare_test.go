@@ -118,7 +118,7 @@ package ilp
 // 	prob.Minimize()
 
 // 	// solve the problem using our own code
-// 	solution, err := prob.toSolveable().Solve()
+// 	solution, err := prob.toSolveable().SolveWithCtx()
 // 	if err != nil {
 // 		t.Error(err)
 // 	}
@@ -203,11 +203,11 @@ package ilp
 // 		defer glpkProblem.Delete() // we need to manually free up memory of GLPK's CGO implementation
 
 // 		// solve the problem with our own solver
-// 		solution, ownErr := milp.Solve()
+// 		solution, ownErr := milp.SolveWithCtx()
 // 		fmt.Println("own solution:")
 // 		fmt.Println(solution.solution.x, solution.solution.z, ownErr)
 
-// 		// Solve GLPK problem with the integer solver
+// 		// SolveWithCtx GLPK problem with the integer solver
 // 		iocp := glpk.NewIocp()
 // 		iocp.SetPresolve(true)
 // 		GLPKerror := glpkProblem.Intopt(iocp)

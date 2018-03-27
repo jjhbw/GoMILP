@@ -121,7 +121,7 @@ func TestProblem_Solve(t *testing.T) {
 	assert.Equal(t, expected, *solveable)
 
 	// solve the problem directly (without any timeouts)
-	soln, err := prob.Solve(context.Background())
+	soln, err := prob.SolveWithCtx(context.Background())
 	assert.NoError(t, err)
 
 	getVal := func(n string) float64 {

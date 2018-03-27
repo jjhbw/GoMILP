@@ -80,7 +80,7 @@ func TestMilpProblem_Solve_InfiniteRecursion_Regression(t *testing.T) {
 
 	if !(reflect.DeepEqual(want.solution.x, got.solution.x) && want.solution.z == got.solution.z) {
 		t.Log(got)
-		t.Errorf("milpProblem.Solve() = %v, want %v", got, want)
+		t.Errorf("milpProblem.SolveWithCtx() = %v, want %v", got, want)
 	}
 
 }
@@ -117,7 +117,7 @@ func TestMilpProblem_Solve_NilReturn_Regression(t *testing.T) {
 
 	if !(reflect.DeepEqual(want.solution.x, got.solution.x) && want.solution.z == got.solution.z) {
 		t.Log(got)
-		t.Errorf("milpProblem.Solve() = %v, want %v", got, want)
+		t.Errorf("milpProblem.SolveWithCtx() = %v, want %v", got, want)
 	}
 
 }
@@ -302,14 +302,14 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 				got, err := p.solve(i, ctx)
 				if err != tt.wantErr {
 					t.Log(got)
-					t.Errorf("milpProblem.Solve() error = %v, wantErr %v", err, tt.wantErr)
+					t.Errorf("milpProblem.SolveWithCtx() error = %v, wantErr %v", err, tt.wantErr)
 					return
 				}
 
 				// Note: we compare only the numerical solution variables
 				if !(reflect.DeepEqual(tt.want.solution.x, got.solution.x) && tt.want.solution.z == got.solution.z) {
 					t.Log(got)
-					t.Errorf("milpProblem.Solve() = %v, want %v %v", got, tt.want.solution.x, tt.want.solution.z)
+					t.Errorf("milpProblem.SolveWithCtx() = %v, want %v %v", got, tt.want.solution.x, tt.want.solution.z)
 				}
 			})
 		}
