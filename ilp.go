@@ -46,6 +46,10 @@ var (
 
 func (p milpProblem) toInitialSubProblem() subProblem {
 	return subProblem{
+		// the initial subproblem has 0 as identifier
+		id: 0,
+
+		// copy (or reference) the initial problem's numerical definition
 		c: p.c,
 		A: p.A,
 		b: p.b,
@@ -60,7 +64,7 @@ func (p milpProblem) toInitialSubProblem() subProblem {
 
 // Argument workers specifies how many workers should be used for traversing the enumeration tree.
 // This is mainly important from a space complexity point of view, as each worker is a potentially concurrent simplex algorithm.
-func (p milpProblem) solve(workers int, ctx context.Context) (milpSolution, error) {
+func (p milpProblem) solve(ctx context.Context, workers int, instrumentation bnbMiddleware) (milpSolution, error) {
 	if workers <= 0 {
 		panic("number of workers may not be lower than zero")
 	}
@@ -73,10 +77,10 @@ func (p milpProblem) solve(workers int, ctx context.Context) (milpSolution, erro
 	initialRelaxation := p.toInitialSubProblem()
 
 	// Start the branch and bound procedure for this problem
-	enumTree := newEnumerationTree(initialRelaxation)
+	enumTree := newEnumerationTree(initialRelaxation, instrumentation)
 
 	// start the branch and bound procedure, presenting the solution to the initial relaxation as a candidate
-	incumbent := enumTree.startSearch(workers, ctx)
+	incumbent := enumTree.startSearch(ctx, workers)
 
 	// if the solver timed out, we return that as an error, along with the best-effort incumbent solution.
 	if timedOut := ctx.Err(); timedOut != nil {

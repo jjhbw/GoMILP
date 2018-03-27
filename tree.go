@@ -34,20 +34,24 @@ type enumerationTree struct {
 
 	// the root problem
 	rootProblem subProblem
+
+	// any instrumentation for e.g. logging or tree visualisation purposes
+	instrumentation bnbMiddleware
 }
 
-func newEnumerationTree(rootProblem subProblem) *enumerationTree {
+func newEnumerationTree(rootProblem subProblem, instrumentation bnbMiddleware) *enumerationTree {
 	return &enumerationTree{
 		// do not build buffered channels: buffering is managed by a separate goroutine.
 		active:     make(chan subProblem),
 		toSolve:    make(chan subProblem),
 		candidates: make(chan solution),
 
-		rootProblem: rootProblem,
+		rootProblem:     rootProblem,
+		instrumentation: instrumentation,
 	}
 }
 
-func (p *enumerationTree) startSearch(nworkers int, ctx context.Context) *solution {
+func (p *enumerationTree) startSearch(ctx context.Context, nworkers int) *solution {
 
 	// solve the initial relaxation
 	initialRelaxationSolution := p.rootProblem.solve()
@@ -177,7 +181,6 @@ func (p *enumerationTree) solveWorker() {
 
 }
 
-// TODO: store each decision somewhere
 func (p *enumerationTree) checkSolution(candidate solution) {
 
 	// decide on what to do with the candidate solution:
@@ -190,29 +193,30 @@ func (p *enumerationTree) checkSolution(candidate solution) {
 		incumbentZ = p.incumbent.z
 	}
 
+	var decision bnbDecision
+
 	switch {
 
 	case candidate.err != nil:
-		translateSolverFailure(candidate.err)
-		// failure := translateSolverFailure(candidate.err)
-		// decision = failure
+		failure := translateSolverFailure(candidate.err)
+		decision = failure
 
 	// Note that the objective is always minimization.
 	case incumbentZ <= candidate.z:
 		// noop
-		// decision = WORSE_THAN_INCUMBENT
+		decision = WORSE_THAN_INCUMBENT
 
 	case incumbentZ > candidate.z:
 		if feasibleForIP(p.rootProblem.integralityConstraints, candidate.x) {
 			// Candidate is an improvement over the incumbent
 			p.incumbent = &candidate
-			// decision = BETTER_THAN_INCUMBENT_FEASIBLE
+			decision = BETTER_THAN_INCUMBENT_FEASIBLE
 
 		} else {
 
 			//candidate is an improvement over the incumbent, but not feasible.
 			//branch and add the descendants of this candidate to the queue
-			// decision = BETTER_THAN_INCUMBENT_BRANCHING
+			decision = BETTER_THAN_INCUMBENT_BRANCHING
 			p1, p2 := candidate.branch()
 			p.enqueueProblems(p1, p2)
 
@@ -224,6 +228,9 @@ func (p *enumerationTree) checkSolution(candidate solution) {
 		panic("unexpected case: could not decide what to do with branched subproblem")
 
 	}
+
+	// pass the decision to the instrumentation
+	p.instrumentation.ProcessDecision(candidate, decision)
 
 }
 

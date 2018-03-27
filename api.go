@@ -22,6 +22,9 @@ type Problem struct {
 
 	// number of workers to solve the milpProblem with
 	workers int
+
+	// instrumentation middleware
+	instrumentation bnbMiddleware
 }
 
 // A variable of the MILP problem.
@@ -64,7 +67,8 @@ type Constraint struct {
 // Initiate a new MILP problem abstraction
 func NewProblem() Problem {
 	return Problem{
-		workers: 1,
+		workers:         1,
+		instrumentation: dummyMiddleware{},
 	}
 }
 
@@ -153,6 +157,10 @@ func (p *Problem) BranchingHeuristic(choice BranchHeuristic) {
 
 func (p *Problem) SetWorkers(n int) {
 	p.workers = n
+}
+
+func (p *Problem) SetInstrumentation(b bnbMiddleware) {
+	p.instrumentation = b
 }
 
 // Check whether the expression is legal considering the variables currently present in the problem
@@ -284,7 +292,7 @@ func (p *Problem) toSolveable() *milpProblem {
 func (p *Problem) SolveWithCtx(ctx context.Context) (*Solution, error) {
 	milp := p.toSolveable()
 
-	soln, err := milp.solve(p.workers, ctx)
+	soln, err := milp.solve(ctx, p.workers, p.instrumentation)
 
 	if err != nil {
 		return nil, err

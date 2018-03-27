@@ -26,11 +26,11 @@ func TestmilpProblem_Solve_Smoke_NoInteger(t *testing.T) {
 	// solve the problem with 1 worker and a one-second timeout
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	solution, err := prob.solve(1, ctx)
+	got, err := prob.solve(ctx, 1, dummyMiddleware{})
 
 	assert.NoError(t, err)
-	assert.Equal(t, float64(-8), solution.solution.z)
-	assert.Equal(t, []float64{2, 3, 0, 0}, solution.solution.x)
+	assert.Equal(t, float64(-8), got.solution.z)
+	assert.Equal(t, []float64{2, 3, 0, 0}, got.solution.x)
 }
 
 func TestInitialSubproblemSolve(t *testing.T) {
@@ -73,7 +73,7 @@ func TestMilpProblem_Solve_InfiniteRecursion_Regression(t *testing.T) {
 	// solve the problem with 2 workers and a one-second timeout
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	got, err := prob.solve(2, ctx)
+	got, err := prob.solve(ctx, 2, dummyMiddleware{})
 
 	assert.Error(t, err)
 	assert.Equal(t, err, context.DeadlineExceeded)
@@ -110,7 +110,7 @@ func TestMilpProblem_Solve_NilReturn_Regression(t *testing.T) {
 	// solve the problem with 2 workers and a one-second timeout
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	got, err := prob.solve(2, ctx)
+	got, err := prob.solve(ctx, 2, dummyMiddleware{})
 
 	assert.Error(t, err)
 	assert.Equal(t, err, NO_INTEGER_FEASIBLE_SOLUTION)
@@ -299,7 +299,7 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 				// solve the problem with 'i' workers and a one-second timeout
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 				defer cancel()
-				got, err := p.solve(i, ctx)
+				got, err := p.solve(ctx, i, dummyMiddleware{})
 				if err != tt.wantErr {
 					t.Log(got)
 					t.Errorf("milpProblem.SolveWithCtx() error = %v, wantErr %v", err, tt.wantErr)
@@ -365,7 +365,7 @@ func testRandomMILP(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.
 		// note that we are adding a one-second timeout
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
-		sol, err = prob.solve(workers, ctx)
+		sol, err = prob.solve(ctx, workers, dummyMiddleware{})
 
 		if err != nil {
 			t.Log(err)

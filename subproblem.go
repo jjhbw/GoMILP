@@ -10,6 +10,12 @@ import (
 
 type subProblem struct {
 
+	// unique identifier for the subproblem
+	id int64
+
+	// id of the parent problem
+	parent int64
+
 	// These variables represent the same as in the MILPproblem and should not be modified.
 	c []float64
 	A *mat.Dense
@@ -229,6 +235,10 @@ func (s solution) branch() (p1, p2 subProblem) {
 	// formulate 'larger than' constraints of the branchpoint as 'smaller or equal than' by inverting the sign
 	p2 = s.problem.getChild(branchOn, -1, -(math.Floor(currentCoeff) + 1))
 
+	// increment the IDs of the subproblems accordingly
+	p1.id++
+	p2.id = p2.id + 2
+
 	return
 }
 
@@ -257,8 +267,11 @@ func (p subProblem) getChild(branchOn int, factor float64, smallerOrEqualThan fl
 // Due to only containing reference types and pointers, the subProblem structs themselves are pretty lightweight.
 // We try to avoid copying of subProblem field values, so the pointer values and the arrays underpinning the slices are reused a lot throughout the procedures.
 // Make sure to run the race detector thoroughly after any modifications to this procedure.
+// Note that copy assigns the same id integer to the daughter problem.
 func (p *subProblem) copy() subProblem {
 	new := subProblem{
+		id:                     p.id,
+		parent:                 p.id,
 		c:                      p.c,
 		A:                      p.A,
 		b:                      p.b,
