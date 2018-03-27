@@ -23,6 +23,7 @@ For testing, solutions to randomized MILPs are compared to solutions produced by
 
 # TODO list
 
+- [ ] Debug ostensibly simple (rummikub) problems that take a very long time to solve. Use instrumentation (and visualisation?).
 - [ ] Deal with infeasible subproblems created after branching on a particular integrality-constrained variable of an LP feasible problem. Should this be a noop (currently) or should branching be retried on another integer constrained variable?
 - [ ] Queue is currently FIFO. For depth-first exploration, we should go with a LIFO queue.
 - [ ] Add heuristic determining which node gets explored first (as we are using depth-first search) https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html?s_tid=gn_loc_drop#btzwtmv

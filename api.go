@@ -151,6 +151,10 @@ func (p *Problem) BranchingHeuristic(choice BranchHeuristic) {
 	p.branchingHeuristic = choice
 }
 
+func (p *Problem) SetWorkers(n int) {
+	p.workers = n
+}
+
 // Check whether the expression is legal considering the variables currently present in the problem
 func (p *Problem) checkExpression(e expression) bool {
 
