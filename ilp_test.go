@@ -113,7 +113,7 @@ func TestMilpProblem_Solve_NilReturn_Regression(t *testing.T) {
 	got, err := prob.solve(2, ctx)
 
 	assert.Error(t, err)
-	assert.Equal(t, err, context.DeadlineExceeded)
+	assert.Equal(t, err, NO_INTEGER_FEASIBLE_SOLUTION)
 
 	if !(reflect.DeepEqual(want.solution.x, got.solution.x) && want.solution.z == got.solution.z) {
 		t.Log(got)
