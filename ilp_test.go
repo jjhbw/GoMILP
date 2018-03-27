@@ -319,6 +319,10 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 
 // Test a series of randomly generated problems, hunting for panics.
 func TestRandomized(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping randomized testing in short mode!")
+	}
+
 	rnd := rand.New(rand.NewSource(1))
 
 	workerRange := 3
@@ -327,11 +331,8 @@ func TestRandomized(t *testing.T) {
 		// some small problems
 		testRandomMILP(t, 100, 0, 10, rnd, i)
 
-		// some small problems with some zeros
-		testRandomMILP(t, 100, 0.1, 10, rnd, i)
-
-		// larger problems
-		testRandomMILP(t, 100, 0, 100, rnd, i)
+		// larger problems with some zeros
+		testRandomMILP(t, 100, 0.1, 100, rnd, i)
 	}
 
 }
