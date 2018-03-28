@@ -178,7 +178,7 @@ func Test_solution_branch(t *testing.T) {
 				z: float64(-8),
 			},
 			wantP1: subProblem{
-				id:     1,
+				id:     0,
 				parent: 0,
 				c:      []float64{-1, -2, 0, 0},
 				A: mat.NewDense(2, 4, []float64{
@@ -196,7 +196,7 @@ func Test_solution_branch(t *testing.T) {
 				integralityConstraints: []bool{true, false, false, false},
 			},
 			wantP2: subProblem{
-				id:     2,
+				id:     0,
 				parent: 0,
 				c:      []float64{-1, -2, 0, 0},
 				A: mat.NewDense(2, 4, []float64{
@@ -239,7 +239,7 @@ func Test_solution_branch(t *testing.T) {
 				z: float64(-8),
 			},
 			wantP1: subProblem{
-				id:     2,
+				id:     0,
 				parent: 1,
 				c:      []float64{-1, -2, 0, 0},
 				A: mat.NewDense(2, 4, []float64{
@@ -262,7 +262,7 @@ func Test_solution_branch(t *testing.T) {
 				},
 			},
 			wantP2: subProblem{
-				id:     3,
+				id:     0,
 				parent: 1,
 				c:      []float64{-1, -2, 0, 0},
 				A: mat.NewDense(2, 4, []float64{

@@ -4,3 +4,4 @@
 debug\.test
 
 \.idea/
+__debugviz__.*

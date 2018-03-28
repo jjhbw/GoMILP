@@ -1,8 +1,10 @@
 package ilp
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -70,10 +72,16 @@ func TestMilpProblem_Solve_InfiniteRecursion_Regression(t *testing.T) {
 
 	want := milpSolution{}
 
+	// initiate the logger instrumentation
+	tl := newTreeLogger()
+
 	// solve the problem with 2 workers and a one-second timeout
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	got, err := prob.solve(ctx, 2, dummyMiddleware{})
+	got, err := prob.solve(ctx, 2, tl)
+
+	// dump the logged tree to a DOT-file
+	dumpToDot(t, tl)
 
 	assert.Error(t, err)
 	assert.Equal(t, err, context.DeadlineExceeded)
@@ -107,10 +115,16 @@ func TestMilpProblem_Solve_NilReturn_Regression(t *testing.T) {
 
 	want := milpSolution{}
 
+	// initiate the logger instrumentation
+	tl := newTreeLogger()
+
 	// solve the problem with 2 workers and a one-second timeout
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	got, err := prob.solve(ctx, 2, dummyMiddleware{})
+	got, err := prob.solve(ctx, 2, tl)
+
+	// dump the logged tree to a DOT-file
+	dumpToDot(t, tl)
 
 	assert.Error(t, err)
 	assert.Equal(t, err, NO_INTEGER_FEASIBLE_SOLUTION)
@@ -120,6 +134,13 @@ func TestMilpProblem_Solve_NilReturn_Regression(t *testing.T) {
 		t.Errorf("milpProblem.SolveWithCtx() = %v, want %v", got, want)
 	}
 
+}
+
+func dumpToDot(t *testing.T, tree *treeLogger) {
+	var buffer bytes.Buffer
+	tree.toDOT(&buffer)
+	err := ioutil.WriteFile("__debugviz__.dot", buffer.Bytes(), 0644)
+	assert.NoError(t, err)
 }
 
 func TestMilpProblem_SolveMultiple(t *testing.T) {

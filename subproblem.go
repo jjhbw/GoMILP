@@ -235,10 +235,6 @@ func (s solution) branch() (p1, p2 subProblem) {
 	// formulate 'larger than' constraints of the branchpoint as 'smaller or equal than' by inverting the sign
 	p2 = s.problem.getChild(branchOn, -1, -(math.Floor(currentCoeff) + 1))
 
-	// increment the IDs of the subproblems accordingly
-	p1.id++
-	p2.id = p2.id + 2
-
 	return
 }
 
@@ -267,10 +263,10 @@ func (p subProblem) getChild(branchOn int, factor float64, smallerOrEqualThan fl
 // Due to only containing reference types and pointers, the subProblem structs themselves are pretty lightweight.
 // We try to avoid copying of subProblem field values, so the pointer values and the arrays underpinning the slices are reused a lot throughout the procedures.
 // Make sure to run the race detector thoroughly after any modifications to this procedure.
-// Note that copy assigns the same id integer to the daughter problem.
+// Note that copy sets the ID of the daughter problem to zero.
 func (p *subProblem) copy() subProblem {
 	new := subProblem{
-		id:                     p.id,
+		id:                     0,
 		parent:                 p.id,
 		c:                      p.c,
 		A:                      p.A,

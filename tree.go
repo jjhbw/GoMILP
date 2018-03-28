@@ -37,6 +37,17 @@ type enumerationTree struct {
 
 	// any instrumentation for e.g. logging or tree visualisation purposes
 	instrumentation bnbMiddleware
+
+	// id source
+	idGenerator idSource
+}
+
+type idSource struct {
+	current int64
+}
+
+func (s *idSource) Next() int64 {
+	return atomic.AddInt64(&s.current, 1)
 }
 
 func newEnumerationTree(rootProblem subProblem, instrumentation bnbMiddleware) *enumerationTree {
@@ -48,10 +59,15 @@ func newEnumerationTree(rootProblem subProblem, instrumentation bnbMiddleware) *
 
 		rootProblem:     rootProblem,
 		instrumentation: instrumentation,
+
+		idGenerator: idSource{},
 	}
 }
 
 func (p *enumerationTree) startSearch(ctx context.Context, nworkers int) *solution {
+
+	// pass the initial relaxation subProblem to the instrumentation
+	p.instrumentation.NewProblem(p.rootProblem)
 
 	// solve the initial relaxation
 	initialRelaxationSolution := p.rootProblem.solve()
@@ -106,12 +122,15 @@ func (p *enumerationTree) postCandidate(s solution) {
 	p.candidates <- s
 }
 
-func (p *enumerationTree) enqueueProblems(probs ...subProblem) {
+func (p *enumerationTree) addNewProblems(probs ...subProblem) {
 	for _, s := range probs {
 
 		p.workAdded()
 
 		p.toSolve <- s
+
+		// pass the problem to the instrumentation layer
+		p.instrumentation.NewProblem(s)
 
 	}
 }
@@ -218,7 +237,12 @@ func (p *enumerationTree) checkSolution(candidate solution) {
 			//branch and add the descendants of this candidate to the queue
 			decision = BETTER_THAN_INCUMBENT_BRANCHING
 			p1, p2 := candidate.branch()
-			p.enqueueProblems(p1, p2)
+
+			// assign IDs to the daughter subProblems
+			p1.id = p.idGenerator.Next()
+			p2.id = p.idGenerator.Next()
+
+			p.addNewProblems(p1, p2)
 
 		}
 
@@ -229,7 +253,7 @@ func (p *enumerationTree) checkSolution(candidate solution) {
 
 	}
 
-	// pass the decision to the instrumentation
+	// pass the solution candidate and the corresponding decision to the instrumentation layer.
 	p.instrumentation.ProcessDecision(candidate, decision)
 
 }
