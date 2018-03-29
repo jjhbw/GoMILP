@@ -9,7 +9,7 @@ import (
 func Test_TreeLoggerToDot(t *testing.T) {
 
 	// initiate a treelogger
-	tl := newTreeLogger()
+	tl := NewTreeLogger()
 
 	// add some nodes to the tree
 	s1 := solution{
@@ -59,9 +59,9 @@ func Test_TreeLoggerToDot(t *testing.T) {
 	}
 
 	// tell the logger about the problems
-	tl.NewProblem(*s1.problem)
-	tl.NewProblem(*s2.problem)
-	tl.NewProblem(*s3.problem)
+	tl.NewSubProblem(*s1.problem)
+	tl.NewSubProblem(*s2.problem)
+	tl.NewSubProblem(*s3.problem)
 
 	// tell the logger about the corresponding decisions
 	tl.ProcessDecision(s1, BETTER_THAN_INCUMBENT_BRANCHING)

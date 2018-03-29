@@ -64,7 +64,7 @@ func (p milpProblem) toInitialSubProblem() subProblem {
 
 // Argument workers specifies how many workers should be used for traversing the enumeration tree.
 // This is mainly important from a space complexity point of view, as each worker is a potentially concurrent simplex algorithm.
-func (p milpProblem) solve(ctx context.Context, workers int, instrumentation bnbMiddleware) (milpSolution, error) {
+func (p milpProblem) solve(ctx context.Context, workers int, instrumentation BnbMiddleware) (milpSolution, error) {
 	if workers <= 0 {
 		panic("number of workers may not be lower than zero")
 	}

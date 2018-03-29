@@ -5,13 +5,13 @@ import (
 	"io"
 )
 
-type bnbMiddleware interface {
+type BnbMiddleware interface {
 
 	// Receives a corresponding decision corresponding to a certain subproblem.
 	ProcessDecision(solution, bnbDecision)
 
 	// receives a new subproblem when it is created by the solver.
-	NewProblem(subProblem)
+	NewSubProblem(subProblem)
 }
 
 type dummyMiddleware struct{}
@@ -20,16 +20,16 @@ func (d dummyMiddleware) ProcessDecision(s solution, b bnbDecision) {
 	return
 }
 
-func (d dummyMiddleware) NewProblem(s subProblem) {
+func (d dummyMiddleware) NewSubProblem(s subProblem) {
 	return
 }
 
-type treeLogger struct {
+type TreeLogger struct {
 	nodes map[int64]node
 }
 
-func newTreeLogger() *treeLogger {
-	return &treeLogger{
+func NewTreeLogger() *TreeLogger {
+	return &TreeLogger{
 		nodes: make(map[int64]node),
 	}
 }
@@ -63,7 +63,7 @@ func newNode(p subProblem) node {
 	}
 }
 
-func (t *treeLogger) ProcessDecision(s solution, d bnbDecision) {
+func (t *TreeLogger) ProcessDecision(s solution, d bnbDecision) {
 	node, found := t.nodes[s.problem.id]
 	if !found {
 		panic("tree logger: node not found in map. Not seen before?")
@@ -79,7 +79,7 @@ func (t *treeLogger) ProcessDecision(s solution, d bnbDecision) {
 	t.nodes[s.problem.id] = node
 }
 
-func (t *treeLogger) NewProblem(s subProblem) {
+func (t *TreeLogger) NewSubProblem(s subProblem) {
 	if _, already := t.nodes[s.id]; already {
 		panic("a node with this ID has already been logged")
 	}
@@ -87,7 +87,7 @@ func (t *treeLogger) NewProblem(s subProblem) {
 }
 
 // takes an io.Writer to write the DOT-file visualisation of the processed enumeration tree to.
-func (t *treeLogger) toDOT(out io.Writer) {
+func (t *TreeLogger) ToDOT(out io.Writer) {
 
 	writeRow := func(r string, args ...interface{}) {
 		if len(args) > 0 {

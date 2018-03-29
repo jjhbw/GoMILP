@@ -35,7 +35,7 @@ type enumerationTree struct {
 	rootProblem subProblem
 
 	// any instrumentation for e.g. logging or tree visualisation purposes
-	instrumentation bnbMiddleware
+	instrumentation BnbMiddleware
 
 	// id source
 	idGenerator idSource
@@ -49,7 +49,7 @@ func (s *idSource) Next() int64 {
 	return atomic.AddInt64(&s.current, 1)
 }
 
-func newEnumerationTree(rootProblem subProblem, instrumentation bnbMiddleware) *enumerationTree {
+func newEnumerationTree(rootProblem subProblem, instrumentation BnbMiddleware) *enumerationTree {
 	return &enumerationTree{
 		// do not build buffered channels: buffering is managed by a separate goroutine.
 		active:     make(chan subProblem),
@@ -66,7 +66,7 @@ func newEnumerationTree(rootProblem subProblem, instrumentation bnbMiddleware) *
 func (p *enumerationTree) startSearch(ctx context.Context, nworkers int) *solution {
 
 	// pass the initial relaxation subProblem to the instrumentation
-	p.instrumentation.NewProblem(p.rootProblem)
+	p.instrumentation.NewSubProblem(p.rootProblem)
 
 	// solve the initial relaxation
 	initialRelaxationSolution := p.rootProblem.solve()
@@ -129,7 +129,7 @@ func (p *enumerationTree) addNewProblems(probs ...subProblem) {
 		p.toSolve <- s
 
 		// pass the problem to the instrumentation layer
-		p.instrumentation.NewProblem(s)
+		p.instrumentation.NewSubProblem(s)
 
 	}
 }

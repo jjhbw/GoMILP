@@ -73,7 +73,7 @@ func TestMilpProblem_Solve_InfiniteRecursion_Regression(t *testing.T) {
 	want := milpSolution{}
 
 	// initiate the logger instrumentation
-	tl := newTreeLogger()
+	tl := NewTreeLogger()
 
 	// solve the problem with 2 workers and a one-second timeout
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -116,7 +116,7 @@ func TestMilpProblem_Solve_NilReturn_Regression(t *testing.T) {
 	want := milpSolution{}
 
 	// initiate the logger instrumentation
-	tl := newTreeLogger()
+	tl := NewTreeLogger()
 
 	// solve the problem with 2 workers and a one-second timeout
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -136,9 +136,9 @@ func TestMilpProblem_Solve_NilReturn_Regression(t *testing.T) {
 
 }
 
-func dumpToDot(t *testing.T, tree *treeLogger) {
+func dumpToDot(t *testing.T, tree *TreeLogger) {
 	var buffer bytes.Buffer
-	tree.toDOT(&buffer)
+	tree.ToDOT(&buffer)
 	err := ioutil.WriteFile("__debugviz__.dot", buffer.Bytes(), 0644)
 	assert.NoError(t, err)
 }

@@ -24,7 +24,7 @@ type Problem struct {
 	workers int
 
 	// instrumentation middleware
-	instrumentation bnbMiddleware
+	instrumentation BnbMiddleware
 }
 
 // A variable of the MILP problem.
@@ -159,7 +159,7 @@ func (p *Problem) SetWorkers(n int) {
 	p.workers = n
 }
 
-func (p *Problem) SetInstrumentation(b bnbMiddleware) {
+func (p *Problem) SetInstrumentation(b BnbMiddleware) {
 	p.instrumentation = b
 }
 
