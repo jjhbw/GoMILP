@@ -20,7 +20,6 @@ const (
 	BETTER_THAN_INCUMBENT_BRANCHING bnbDecision = "better than incumbent but not integer feasible, so branching"
 	BETTER_THAN_INCUMBENT_FEASIBLE  bnbDecision = "better than incumbent and integer feasible, so replacing incumbent"
 	INITIAL_RX_FEASIBLE_FOR_IP      bnbDecision = "initial relaxation is feasible for IP"
-	INITIAL_RELAXATION_LEGAL        bnbDecision = "initial relaxation is legal and thus set as initial incumbent"
 )
 
 type enumerationTree struct {

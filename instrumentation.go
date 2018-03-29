@@ -103,17 +103,45 @@ func (t *treeLogger) toDOT(out io.Writer) {
 	writeRow("digraph enumtree {")
 
 	// node primary markup
-	writeRow("node [fontname=Courier,shape=circle];")
+	writeRow("node [fontname=Courier,shape=rectangle];")
 	writeRow("edge [color=Blue, style=dashed];")
 
 	// parse the nodes and map each node to its parent
 	relations := make(map[int64]int64)
 	for id, n := range t.nodes {
-		color := "Red"
+		color := "Pink"
+		label := "unsolved"
 		if n.solved {
-			color = "Green"
+			tag := ""
+			switch n.decision {
+			case BETTER_THAN_INCUMBENT_FEASIBLE:
+				color = "Green"
+				tag = "new incumbent!"
+
+			case SUBPROBLEM_NOT_FEASIBLE:
+				color = "Red"
+				tag = "infeasible"
+
+			case WORSE_THAN_INCUMBENT:
+				color = "Gray"
+				tag = "worse"
+
+			case BETTER_THAN_INCUMBENT_BRANCHING:
+				color = "Black"
+				tag = "branching"
+			case SUBPROBLEM_IS_DEGENERATE:
+				color = "Red"
+				tag = "singular"
+
+			default:
+				color = "Red"
+				tag = string(n.decision)
+			}
+
+			label = fmt.Sprintf("<Z=%.2f <BR /> id:%v <BR /> %v >", n.z, n.id, tag)
 		}
-		writeRow("%v [label=prob_%v,color=%v];", id, id, color)
+
+		writeRow("%v [label=%v,color=%v];", id, label, color)
 		relations[id] = n.parent
 	}
 
