@@ -77,12 +77,17 @@ func (p *enumerationTree) startSearch(ctx context.Context, nworkers int) *soluti
 		if initialRelaxationSolution.err == lp.ErrInfeasible {
 			initialRelaxationSolution.err = INITIAL_RELAXATION_NOT_FEASIBLE
 		}
+
+		p.instrumentation.ProcessDecision(initialRelaxationSolution, SUBPROBLEM_NOT_FEASIBLE)
+
 		return &initialRelaxationSolution
 	}
 
 	// If no integrality constraints are present, we can return the initial solution as-is if it is feasible.
 	// moreover, if the solution to the initial relaxation already satisfies all integrality constraints, we can present it as-is.
 	if feasibleForIP(p.rootProblem.integralityConstraints, initialRelaxationSolution.x) {
+
+		p.instrumentation.ProcessDecision(initialRelaxationSolution, INITIAL_RX_FEASIBLE_FOR_IP)
 		return &initialRelaxationSolution
 	}
 

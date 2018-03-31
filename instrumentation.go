@@ -114,9 +114,14 @@ func (t *TreeLogger) ToDOT(out io.Writer) {
 		if n.solved {
 			tag := ""
 			switch n.decision {
+
+			case INITIAL_RX_FEASIBLE_FOR_IP:
+				color = "Green"
+				tag = "initial relaxation feasible for IP"
+
 			case BETTER_THAN_INCUMBENT_FEASIBLE:
 				color = "Green"
-				tag = "new incumbent!"
+				tag = "IP feasible. New incumbent!"
 
 			case SUBPROBLEM_NOT_FEASIBLE:
 				color = "Red"

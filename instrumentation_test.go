@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_TreeLoggerToDot(t *testing.T) {
+func Test_TreeLogger(t *testing.T) {
 
 	// initiate a treelogger
 	tl := NewTreeLogger()
