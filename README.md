@@ -28,6 +28,7 @@ For testing, solutions to randomized MILPs are compared to solutions produced by
 - [ ] Problem preprocessing: matrices of e.g. rummikub problems can be greatly simplified by removing redundant constraints.
 - [ ] Debug ostensibly simple rummikub sub-problems that take a very long time to solve.  **Hypothesis**: simplex panics like `lp: bland: all replacements are negative or cause ill-conditioned ab` can be prevented using aggressive problem preprocessing.
 - [ ] Branching procedure may generate new constraints that are superseded by existing ones (e.g. branching on `x1 >= 2 | X <= 1` when there is already an existing constraint stating that `x1 < 1` ). This is wasteful and can be solved by more intelligent branching.
+- [ ] Somehow all rummikub problems in the unit tests of rummiGo have integer-feasible initial relaxations… The resulting solutions do perfectly match the specified test results, though.
 
 
 ### Enhancements
