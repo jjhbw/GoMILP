@@ -21,15 +21,23 @@ Go dependencies are managed using [Go dep](https://github.com/golang/dep). See `
 
 For testing, solutions to randomized MILPs are compared to solutions produced by the GNU Linear Programming Kit, using its [Go bindings](https://github.com/lukpank/go-glpk). To install `libglpk` on macOs, simply run `brew install glpk`.
 
-# TODO list
+# TODO
 
-- [ ] Debug ostensibly simple (rummikub) sub-problems that take a very long time to solve.  **Hypothesis**: simplex panics like `lp: bland: all replacements are negative or cause ill-conditioned ab` can be prevented using aggressive problem preprocessing.
+### Hurdles
+
+- [ ] Branching procedure may generate new constraints that are superseded by existing ones (e.g. branching on `x1 >= 2 | X <= 1` when there is already an existing constraint stating that `x1 < 1` ). This is wasteful and can be solved by more intelligent branching.
+- [ ] Problem preprocessing: matrices of e.g. rummikub problems can be greatly simplified by removing redundant constraints.
+- [ ] Debug ostensibly simple rummikub sub-problems that take a very long time to solve.  **Hypothesis**: simplex panics like `lp: bland: all replacements are negative or cause ill-conditioned ab` can be prevented using aggressive problem preprocessing.
+
+
+### Enhancements
+
+- [ ] Formal testing against [problems with known solutions](http://miplib.zib.de/miplib2010.php)? ([MPS parser](https://github.com/dennisfrancis/mps) needed)
+- [ ] Convert subproblem to standard form in an earlier stage (remove inequality matrix asap). Lots of room for optimization in the `combineInequalities` and `convertToEqualities` functions.
+- [ ] Cancellation currently only possible when bnb procedure has been started. We may want to be able to cancel the solving of the initial relaxation too.
 - [ ] Deal with infeasible subproblems created after branching on a particular integrality-constrained variable of an LP feasible problem. Should this be a noop (currently) or should branching be retried on another integer constrained variable?
 - [ ] Queue is currently FIFO. For depth-first exploration, we should go with a LIFO queue.
 - [ ] Add heuristic determining which node gets explored first (as we are using depth-first search) https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html?s_tid=gn_loc_drop#btzwtmv
-- [ ] Log decisions of branch-and-bound procedure in a tree structure for visualisation and debugging purposes. Use optional instrumentation of the BnB procedure for this. Perhaps using a callback or an interface object as an argument to `startSearch()`.
-- [ ] config API: set number of workers and choice branching heuristic?
-- [ ] add more diverse MILP test cases with known solutions.
 - [ ] Maybe make context.Context optional only in the top-level API
 - [ ] Low-level solver cancellation plumbing may be better off governed by our own cancellation hooks instead of the bulky context API. On the other hand, context has a nice set of errors defined on deadline exceeded etc. Replacing it may not be worth it.
 - [ ] how to deal with matrix degeneracy in subproblems? Currently handled the same way as infeasible subproblems.

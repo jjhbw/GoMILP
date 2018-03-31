@@ -97,6 +97,7 @@ func (p subProblem) combineInequalities() (*mat.Dense, []float64) {
 	// if no constraints need to be added, return the original constraints.
 	if p.G != nil {
 		// copy the matrix, simultaneously casting to a concrete type
+		// TODO: double check if a copy is necessary
 		return mat.DenseCopyOf(p.G), p.h
 	}
 	return nil, nil
@@ -159,12 +160,6 @@ func convertToEqualities(c []float64, A *mat.Dense, b []float64, G *mat.Dense, h
 	bottomRight := aNew.Slice(nCons, nNewCons, nVar, nVar+nIneq).(*mat.Dense)
 	for i := 0; i < nIneq; i++ {
 		bottomRight.Set(i, i, 1)
-	}
-
-	// TODO: move to tests
-	// sanity check the output dimensions
-	if insane := sanityCheckDimensions(cNew, aNew, bNew, nil, nil); insane != nil {
-		panic(insane)
 	}
 
 	return
