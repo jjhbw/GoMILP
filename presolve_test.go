@@ -7,7 +7,7 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-func Test_removeEmptyRows(t *testing.T) {
+func Test_RemoveEmptyRows(t *testing.T) {
 	type args struct {
 		A *mat.Dense
 		b []float64
