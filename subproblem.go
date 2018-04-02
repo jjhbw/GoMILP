@@ -207,9 +207,26 @@ func (s solution) branch() (p1, p2 subProblem) {
 
 // inherit everything from the parent problem, but append a new bnb constraint using a variable index and a max value for this variable.
 // Note that we also provide a multiplication factor for the to allow for sign changes.
+// Creating child subProblems like this has non-trivial memory implications.
+// Due to only containing reference types and pointers, the subProblem structs themselves are pretty lightweight.
+// We try to avoid copying of subProblem field values, so the pointer values and the arrays underpinning the slices are reused a lot throughout the procedures.
+// Make sure to run the race detector thoroughly after any modifications to this procedure.
+// Note that copy sets the ID of the daughter problem to zero.
 func (p subProblem) getChild(branchOn int, factor float64, smallerOrEqualThan float64) subProblem {
 
-	child := p.copy()
+	child := subProblem{
+		id:                     0,
+		parent:                 p.id,
+		c:                      p.c,
+		A:                      p.A,
+		b:                      p.b,
+		bnbConstraints:         make([]bnbConstraint, len(p.bnbConstraints)),
+		integralityConstraints: p.integralityConstraints,
+	}
+
+	// As the bnbConstraints slice is modified with each branch-and-bound node, we copy it to prevent race conditions occurring in subProblems further downstream
+	copy(child.bnbConstraints, p.bnbConstraints)
+
 	newConstraint := bnbConstraint{
 		branchedVariable: branchOn,
 		hsharp:           smallerOrEqualThan,
@@ -224,28 +241,6 @@ func (p subProblem) getChild(branchOn int, factor float64, smallerOrEqualThan fl
 
 	return child
 
-}
-
-// Creating child subProblems like this has non-trivial memory implications.
-// Due to only containing reference types and pointers, the subProblem structs themselves are pretty lightweight.
-// We try to avoid copying of subProblem field values, so the pointer values and the arrays underpinning the slices are reused a lot throughout the procedures.
-// Make sure to run the race detector thoroughly after any modifications to this procedure.
-// Note that copy sets the ID of the daughter problem to zero.
-func (p *subProblem) copy() subProblem {
-	new := subProblem{
-		id:                     0,
-		parent:                 p.id,
-		c:                      p.c,
-		A:                      p.A,
-		b:                      p.b,
-		bnbConstraints:         make([]bnbConstraint, len(p.bnbConstraints)),
-		integralityConstraints: p.integralityConstraints,
-	}
-
-	// As the bnbConstraints slice is modified with each branch-and-bound node, we copy it to prevent race conditions occurring in subProblems further downstream
-	copy(new.bnbConstraints, p.bnbConstraints)
-
-	return new
 }
 
 // Sanity check for the problems dimensions
