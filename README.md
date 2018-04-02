@@ -6,20 +6,15 @@ The scope of this project is to build a simple, reliable MILP solver with an eas
 
 This project features an implementation of a ('lazy') branch-and-bound method for solving Mixed Integer Linear Programs. The applied branch and bound procedure is basically a heuristic-guided (depth-first **?**) search over an enumeration tree. In this tree, each node is a particular relaxation of the original problem with additional heuristically determined constraints. To solve each LP relaxation, we use [Gonum's excellent implementation]() of the [Simplex](https://en.wikipedia.org/wiki/Simplex_algorithm) algorithm.
 
-**Currently supports the following problem formulation features:**
 
-- [x] integrality constraints
-- [x] inequality constraints
-- [x] equality constraints
-- [x] maximization
-- [x] minimization
-- [ ] Optional relaxation of nonnegativity constraints (allow decision variables to take negative values)
 
 # Dependencies
 
 Go dependencies are managed using [Go dep](https://github.com/golang/dep). See `Gopkg.lock` and `Gopkg.toml`.
 
 For testing, solutions to randomized MILPs are compared to solutions produced by the GNU Linear Programming Kit, using its [Go bindings](https://github.com/lukpank/go-glpk). To install `libglpk` on macOs, simply run `brew install glpk`.
+
+
 
 # TODO
 
@@ -33,6 +28,8 @@ For testing, solutions to randomized MILPs are compared to solutions produced by
 
 ### Enhancements
 
+- [ ] primal/dual solving
+- [ ] problem preprocessing of non-root nodes in bnb tree
 - [ ] Formal testing against [problems with known solutions](http://miplib.zib.de/miplib2010.php)? ([MPS parser](https://github.com/dennisfrancis/mps) needed)
 - [ ] Convert subproblem to standard form in an earlier stage (remove inequality matrix asap). Lots of room for optimization in the `combineInequalities` and `convertToEqualities` functions.
 - [ ] Cancellation currently only possible when bnb procedure has been started. We may want to be able to cancel the solving of the initial relaxation too.
