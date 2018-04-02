@@ -3,6 +3,7 @@ package ilp
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize/convex/lp"
@@ -45,21 +46,44 @@ var (
 )
 
 func (p milpProblem) toInitialSubProblem() subProblem {
+
+	// get the standard form representation of the problem
+	c, A, b, integrality := p.toStandardForm()
+
 	return subProblem{
 		// the initial subproblem has 0 as identifier
 		id: 0,
 
-		// copy (or reference) the initial problem's numerical definition
-		c: p.c,
-		A: p.A,
-		b: p.b,
-		G: p.G,
-		h: p.h,
-		integralityConstraints: p.integralityConstraints,
+		c: c,
+		A: A,
+		b: b,
+		integralityConstraints: integrality,
 
 		// for the initial subproblem, there are no branch-and-bound-specific inequality constraints.
 		bnbConstraints: []bnbConstraint{},
 	}
+}
+
+func (p milpProblem) toStandardForm() ([]float64, *mat.Dense, []float64, []bool) {
+
+	// convert the inequalities (if any) to equalities
+	c := p.c
+	A := p.A
+	b := p.b
+
+	if p.G != nil {
+		cNew, Anew, bNew := convertToEqualities(p.c, p.A, p.b, p.G, p.h)
+
+		// add 'false' integrality constraints to the created slack variables
+		intNew := make([]bool, len(cNew))
+		copy(intNew, p.integralityConstraints)
+
+		fmt.Println(intNew)
+		return cNew, Anew, bNew, intNew
+	}
+
+	return c, A, b, p.integralityConstraints
+
 }
 
 // Argument workers specifies how many workers should be used for traversing the enumeration tree.
@@ -102,13 +126,17 @@ func (p milpProblem) solve(ctx context.Context, workers int, instrumentation Bnb
 		return milpSolution{}, incumbent.err
 	}
 
-	// Check if the solution is feasible considering the integrality constraints.
-	if !feasibleForIP(p.integralityConstraints, incumbent.x) {
-		return milpSolution{}, NO_INTEGER_FEASIBLE_SOLUTION
+	// TODO: replace with formal postsolve routine to undo all presolver operations.
+	// map the solution back to its original shape (i.e. remove slack variables)
+	remapped := solution{
+		problem: incumbent.problem,
+		x:       incumbent.x[:len(p.c)],
+		z:       incumbent.z,
+		err:     incumbent.err,
 	}
 
 	return milpSolution{
-		solution: *incumbent,
+		solution: remapped,
 	}, nil
 
 }

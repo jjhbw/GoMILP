@@ -20,8 +20,6 @@ type subProblem struct {
 	c []float64
 	A *mat.Dense
 	b []float64
-	G *mat.Dense
-	h []float64
 
 	// integrality constraints, inherited from parent problem and should not be modified.
 	integralityConstraints []bool
@@ -36,6 +34,7 @@ type subProblem struct {
 
 type bnbConstraint struct {
 	// the index of the variable that we branched on
+	// saved for quick retrieval of the variable that the parent branched on
 	branchedVariable int
 
 	// additions to make to the subProblem before solving
@@ -55,51 +54,24 @@ type solution struct {
 func (p subProblem) combineInequalities() (*mat.Dense, []float64) {
 
 	if len(p.bnbConstraints) > 0 {
-		// get the 'right sides' original problem inequality constraints
-		h := p.h
+		// get the 'right sides'
+		var h []float64
 
 		// build a matrix of all constraints originating from the branch-and-bound procedure
 		var bnbGvects []float64
 		for _, constr := range p.bnbConstraints {
 			bnbGvects = append(bnbGvects, constr.gsharp...)
 
-			// add the hsharp value to the h vector
+			// add each hsharp value to the h vector
 			h = append(h, constr.hsharp)
 		}
 		bnbG := mat.NewDense(len(p.bnbConstraints), len(p.c), bnbGvects)
 
-		// if the original problem did not contain inequality constraints, we return the bnb constraint matrix.
-		if p.G == nil {
-			return bnbG, h
-		}
+		return bnbG, h
 
-		// if for some magic reason the inequality constraint matrix is of zero-dimension, we can also return just the bnb constraints.
-		if p.G.IsZero() {
-			return bnbG, h
-		}
-
-		// Use stack to combine the branch-and-bound constraint matrix with the original problem inequality constraint matrix into G that will be used in the simplex
-		// into a new matrix, which needs to be initialized in the exact shape we expect.
-		// Note that this will place the bnb constraints in the higher indexed rows.
-		origRows, _ := p.G.Dims()
-		bnbRows, _ := bnbG.Dims()
-		expectedRows := origRows + bnbRows
-
-		// allocate a zero-valued new matrix of the given dimensions
-		Gnew := mat.NewDense(expectedRows, len(p.c), nil)
-
-		// stack the two matrices into this new matrix
-		Gnew.Stack(p.G, bnbG)
-
-		return Gnew, h
 	}
 
-	// if no constraints need to be added, return the original constraints.
-	if p.G != nil {
-		// copy the matrix, simultaneously casting to a concrete type
-		// TODO: double check if a copy is necessary
-		return mat.DenseCopyOf(p.G), p.h
-	}
+	// if no constraints need to be added, return nil
 	return nil, nil
 
 }
@@ -167,7 +139,7 @@ func convertToEqualities(c []float64, A *mat.Dense, b []float64, G *mat.Dense, h
 
 func (p subProblem) solve() solution {
 
-	// get the inequality constraints
+	// get the inequality constraints from the BnB procedure as a G matrix and h vector.
 	G, h := p.combineInequalities()
 
 	var z float64
@@ -266,8 +238,6 @@ func (p *subProblem) copy() subProblem {
 		c:                      p.c,
 		A:                      p.A,
 		b:                      p.b,
-		G:                      p.G,
-		h:                      p.h,
 		bnbConstraints:         make([]bnbConstraint, len(p.bnbConstraints)),
 		integralityConstraints: p.integralityConstraints,
 	}

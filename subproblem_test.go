@@ -40,7 +40,7 @@ func TestExampleSimplex(t *testing.T) {
 	// x: [2 3 0 0]
 }
 
-func Test_subProblem_getInequalities(t *testing.T) {
+func Test_subProblem_combineInequalities(t *testing.T) {
 	type fields struct {
 		c              []float64
 		A              *mat.Dense
@@ -56,7 +56,7 @@ func Test_subProblem_getInequalities(t *testing.T) {
 		want1  []float64
 	}{
 		{
-			name: "no bnb or original constraints",
+			name: "no bnb constraints",
 			fields: fields{
 				c: []float64{-1, -2, 0, 0},
 				A: mat.NewDense(2, 4, []float64{
@@ -69,22 +69,7 @@ func Test_subProblem_getInequalities(t *testing.T) {
 			want1: nil,
 		},
 		{
-			name: "only original constraints",
-			fields: fields{
-				c: []float64{-1, -2, 0, 0},
-				A: mat.NewDense(2, 4, []float64{
-					-1, 2, 1, 0,
-					3, 1, 0, 1,
-				}),
-				b: []float64{4, 9},
-				h: []float64{1},
-				G: mat.NewDense(1, 4, []float64{1, 0, 0, 0}),
-			},
-			want:  mat.NewDense(1, 4, []float64{1, 0, 0, 0}),
-			want1: []float64{1},
-		},
-		{
-			name: "One bnb constraint, no original inequality constraints",
+			name: "One bnb constraint",
 			fields: fields{
 				c: []float64{-1, -2, 0, 0},
 				A: mat.NewDense(2, 4, []float64{
@@ -104,7 +89,7 @@ func Test_subProblem_getInequalities(t *testing.T) {
 			want1: []float64{1},
 		},
 		{
-			name: "One bnb constraint, one original inequality constraint",
+			name: "Two bnb constraints",
 			fields: fields{
 				c: []float64{-1, -2, 0, 0},
 				A: mat.NewDense(2, 4, []float64{
@@ -112,18 +97,24 @@ func Test_subProblem_getInequalities(t *testing.T) {
 					3, 1, 0, 1,
 				}),
 				b: []float64{4, 9},
-				h: []float64{2},
-				G: mat.NewDense(1, 4, []float64{0, 0, 0, 1}),
 				bnbConstraints: []bnbConstraint{
 					{
-						branchedVariable: 0,
+						branchedVariable: 3,
 						hsharp:           1,
-						gsharp:           []float64{1, 0, 0, 0},
+						gsharp:           []float64{0, 0, 0, 1},
+					},
+					{
+						branchedVariable: 1,
+						hsharp:           3,
+						gsharp:           []float64{0, 1, 0, 0},
 					},
 				},
 			},
-			want:  mat.NewDense(2, 4, []float64{0, 0, 0, 1, 1, 0, 0, 0}),
-			want1: []float64{2, 1},
+			want: mat.NewDense(2, 4, []float64{
+				0, 0, 0, 1,
+				0, 1, 0, 0,
+			}),
+			want1: []float64{1, 3},
 		},
 	}
 	for _, tt := range tests {
@@ -132,8 +123,6 @@ func Test_subProblem_getInequalities(t *testing.T) {
 				c:              tt.fields.c,
 				A:              tt.fields.A,
 				b:              tt.fields.b,
-				G:              tt.fields.G,
-				h:              tt.fields.h,
 				bnbConstraints: tt.fields.bnbConstraints,
 			}
 			got, got1 := p.combineInequalities()
