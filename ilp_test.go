@@ -14,7 +14,7 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-func TestmilpProblem_Solve_Smoke_NoInteger(t *testing.T) {
+func TestMilpProblem_Solve_Smoke_NoInteger(t *testing.T) {
 	prob := milpProblem{
 		c: []float64{-1, -2, 0, 0},
 		A: mat.NewDense(2, 4, []float64{
@@ -33,25 +33,6 @@ func TestmilpProblem_Solve_Smoke_NoInteger(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, float64(-8), got.solution.z)
 	assert.Equal(t, []float64{2, 3, 0, 0}, got.solution.x)
-}
-
-func TestInitialSubproblemSolve(t *testing.T) {
-	prob := milpProblem{
-		c: []float64{-1, -2, 0, 0},
-		A: mat.NewDense(2, 4, []float64{
-			-1, 2, 1, 0,
-			3, 1, 0, 1,
-		}),
-		b: []float64{4, 9},
-		integralityConstraints: []bool{false, false, true, false},
-	}
-
-	s := prob.toInitialSubProblem()
-
-	solution := s.solve()
-	t.Log(solution.problem)
-	fmt.Println(solution.x)
-	assert.NoError(t, solution.err)
 }
 
 // A regression test case for a potential infinite recursion in the branch-and-bound procedure.
