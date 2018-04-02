@@ -3,7 +3,6 @@ package ilp
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize/convex/lp"
@@ -64,25 +63,24 @@ func (p milpProblem) toInitialSubProblem() subProblem {
 	}
 }
 
-func (p milpProblem) toStandardForm() ([]float64, *mat.Dense, []float64, []bool) {
+func (p milpProblem) toStandardForm() (cNew []float64, Anew *mat.Dense, bNew []float64, intNew []bool) {
 
 	// convert the inequalities (if any) to equalities
-	c := p.c
-	A := p.A
-	b := p.b
+	cNew = p.c
+	Anew = p.A
+	bNew = p.b
+	intNew = p.integralityConstraints
 
 	if p.G != nil {
-		cNew, Anew, bNew := convertToEqualities(p.c, p.A, p.b, p.G, p.h)
+		cNew, Anew, bNew = convertToEqualities(p.c, p.A, p.b, p.G, p.h)
 
 		// add 'false' integrality constraints to the created slack variables
-		intNew := make([]bool, len(cNew))
+		intNew = make([]bool, len(cNew))
 		copy(intNew, p.integralityConstraints)
-
-		fmt.Println(intNew)
-		return cNew, Anew, bNew, intNew
+		return
 	}
 
-	return c, A, b, p.integralityConstraints
+	return
 
 }
 
