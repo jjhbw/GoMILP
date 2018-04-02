@@ -30,6 +30,7 @@ For testing, solutions to randomized MILPs are compared to solutions produced by
 
 - [ ] primal/dual solving
 - [ ] problem preprocessing of non-root nodes in bnb tree
+- [ ] variables are currently subject to negativity constraints by default.
 - [ ] Formal testing against [problems with known solutions](http://miplib.zib.de/miplib2010.php)? ([MPS parser](https://github.com/dennisfrancis/mps) needed)
 - [ ] Convert subproblem to standard form in an earlier stage (remove inequality matrix asap). Lots of room for optimization in the `combineInequalities` and `convertToEqualities` functions.
 - [ ] Cancellation currently only possible when bnb procedure has been started. We may want to be able to cancel the solving of the initial relaxation too.
