@@ -187,8 +187,55 @@ func (p *Problem) getVariableIndex(v *Variable) int {
 	panic("variable pointer not found in Problem struct")
 }
 
+// check if the variable is fixed in its bounds
+func isFixed(variable *Variable) bool {
+	if variable.lower == variable.upper {
+		return true
+	}
+	return false
+}
+
+// remove all fixed variables from the problem definition
+func filterFixedVars(p Problem) Problem {
+	filtered := p
+
+	//TODO:, an additive constant in the objective value c0 needs to be updated as
+	// c0 :=co +cjxj,
+	// and the corresponding RHS value needs to be updated as:
+	// bi = bi − aij xj ,
+
+	var newVars []*Variable
+	for _, v := range filtered.variables {
+		if !isFixed(v) {
+			newVars = append(newVars, v)
+		}
+	}
+
+	fmt.Printf("removed %v fixed variables \n", len(newVars)-len(filtered.variables))
+
+	filtered.variables = newVars
+
+	for _, c := range filtered.constraints {
+		var replacementExpressions []expression
+		for _, e := range c.expressions {
+			if isFixed(e.variable) {
+				// update the RHS of the constraint and remove the expression pointing to this variable
+				c.rhs = c.rhs + e.variable.lower
+			} else {
+				replacementExpressions = append(replacementExpressions, e)
+			}
+		}
+		c.expressions = replacementExpressions
+	}
+
+	return filtered
+
+}
+
 // Convert the abstract problem representation to its concrete numerical representation.
-func (p *Problem) toSolveable() *milpProblem {
+func (prob Problem) toSolveable() *milpProblem {
+
+	p := filterFixedVars(prob)
 
 	// get the c vector containing the coefficients of the variables in the objective function
 	// simultaneously parse the integrality constraints

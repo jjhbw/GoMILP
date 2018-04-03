@@ -147,26 +147,24 @@ func dropRows(m mat.Matrix, keep []int) (new *mat.Dense) {
 	return
 }
 
-// func (prepper *preProcessor) removeFixedVariables(c []float64, A *mat.Dense, ints []bool) (cNew []float64, Anew *mat.Dense, intNew []bool) {
+// func (prepper *preProcessor) findFixedVariables(c []float64, A *mat.Dense, ints []bool) (cNew []float64, Anew *mat.Dense, intNew []bool) {
 
-// 	// for each column in A, check whether it has only one nonzero element.
-// 	// If it has only one nonzero element, we save that row
-// 	aR, aC := A.Dims()
+// 	// TODO: look for variables fixed at zero
+// 	aR, aC := m.Dims()
 
 // 	for j := 0; j < aC; j++ {
-// 		nonzero := 0
-// 		latestNonzero := -1
-// 		for i := 0; i < aC; i++ {
-// 			if A.At(i, j) != 0 {
-// 				nonzero++
-// 				latestNonzero = i
-// 			}
-// 		}
-// 		if nonzero == 1 {
 
+// 	}
+// }
+
+// func hasNonZero(in []float64) bool {
+// 	for i, x := range in {
+// 		if x != 0 {
+// 			return true
 // 		}
 // 	}
 
+// 	return true
 // }
 
 // identify any empty columns, returning an indicator vector.
@@ -253,6 +251,12 @@ func (prepper *preProcessor) preSolve(p milpProblem) preProcessedProblem {
 
 	// get the standard form representation of the problem
 	c, A, b, integrality := prepper.toStandardForm(p)
+
+	// fmt.Println(mat.Formatted(A))
+	// err := ioutil.WriteFile("Amat", []byte(fmt.Sprint(mat.Formatted(A))), 0644)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
 	// removing empty rows does not require any postsolve operations to be stored
 	A, b = removeEmptyRows(A, b)
