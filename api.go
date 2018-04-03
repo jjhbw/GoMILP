@@ -257,6 +257,7 @@ func (p *Problem) toSolveable() *milpProblem {
 		}
 
 		// convert the lower bound to a row in the constraint matrix
+		// but ONLY if it is nonzero and nonnegative
 		if !(v.lower <= 0) {
 			uRow := make([]float64, len(p.variables))
 			i := p.getVariableIndex(v)
