@@ -54,7 +54,7 @@ type Constraint struct {
 	// these expressions will be summed together to form the left-hand-side of the constraint
 	expressions []expression
 
-	// right-hand-side of the
+	// right-hand side of the constraint equation
 	rhs float64
 
 	// an equality constraint by default
@@ -257,7 +257,7 @@ func (p *Problem) toSolveable() *milpProblem {
 		}
 
 		// convert the lower bound to a row in the constraint matrix
-		// but ONLY if it is nonzero and nonnegative
+		// but ONLY if it is nonzero and nonnegative, because negative domain is illegal and the lower bound of the variable is zero by default.
 		if !(v.lower <= 0) {
 			uRow := make([]float64, len(p.variables))
 			i := p.getVariableIndex(v)

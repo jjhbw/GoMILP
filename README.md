@@ -4,7 +4,7 @@
 
 The scope of this project is to build a simple, reliable MILP solver with an easy to use API in pure Go. Several alternatives ([1](https://github.com/draffensperger/golp),[2](https://github.com/lukpank/go-glpk),[3](https://github.com/costela/golpa)) exist in the form of CGO bindings with older LP solver libraries. While excellent pieces of software, I found their dependence on external libraries a big downside for usecases where maximum portability is key.
 
-This project features an implementation of a ('lazy') branch-and-bound method for solving Mixed Integer Linear Programs. The applied branch and bound procedure is basically a heuristic-guided (depth-first **?**) search over an enumeration tree. In this tree, each node is a particular relaxation of the original problem with additional heuristically determined constraints. To solve each LP relaxation, we use [Gonum's excellent implementation]() of the [Simplex](https://en.wikipedia.org/wiki/Simplex_algorithm) algorithm.
+This project features an implementation of a ('lazy') branch-and-bound method for solving Mixed Integer Linear Programs. The applied branch and bound procedure is basically a heuristic-guided (depth-first **?**) search over an enumeration tree that is generated on the fly. In this tree, each node is a particular relaxation of the original problem with additional heuristically determined constraints. To solve each LP relaxation, we use [Gonum's excellent implementation]() of the [Simplex](https://en.wikipedia.org/wiki/Simplex_algorithm) algorithm.
 
 
 
@@ -20,6 +20,8 @@ For testing, solutions to randomized MILPs are compared to solutions produced by
 
 ### Hurdles
 
+- [ ] Problem preprocessing code is still messy and fragile. Remove/replace presolve operations that work on the problem matrix instead of on the problem's abstract definition?
+- [ ] Only the simples problem preprocessing steps have been implemented.
 - [ ] Problem preprocessing: matrices of e.g. rummikub problems can be greatly simplified by removing redundant constraints.
 - [ ] Debug ostensibly simple rummikub sub-problems that take a very long time to solve.  **Hypothesis**: simplex panics like `lp: bland: all replacements are negative or cause ill-conditioned ab` can be prevented using aggressive problem preprocessing.
 - [ ] Branching procedure may generate new constraints that are superseded by existing ones (e.g. branching on `x1 >= 2 | X <= 1` when there is already an existing constraint stating that `x1 < 1` ). This is wasteful and can be solved by more intelligent branching.
