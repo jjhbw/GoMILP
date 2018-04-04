@@ -3,6 +3,7 @@ package ilp
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize/convex/lp"
@@ -82,6 +83,11 @@ func (p milpProblem) solve(ctx context.Context, workers int, instrumentation Bnb
 	}
 
 	initialRelaxation := p.toInitialSubproblem()
+
+	//TODO: REMOVEME
+	fmt.Println(mat.Formatted(initialRelaxation.A))
+	fmt.Println("b:")
+	fmt.Println(initialRelaxation.b)
 
 	// Start the branch and bound procedure for this problem
 	enumTree := newEnumerationTree(initialRelaxation, instrumentation)

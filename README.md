@@ -20,8 +20,11 @@ For testing, solutions to randomized MILPs are compared to solutions produced by
 
 ### Hurdles
 
-- [ ] Problem preprocessing code is still messy and fragile. Remove/replace presolve operations that work on the problem matrix instead of on the problem's abstract definition?
-- [ ] Only the simples problem preprocessing steps have been implemented.
+- [ ] Prevent matrix singularity introduced by problem preprocessing 
+  - [x] duplicate rows 
+  - [x] empty rows (all zero)
+- [ ] Problem preprocessing code is still messy and needs some unit tests.
+- [ ] Only the simplest problem preprocessing operations have been implemented.
 - [ ] Problem preprocessing: matrices of e.g. rummikub problems can be greatly simplified by removing redundant constraints.
 - [ ] Debug ostensibly simple rummikub sub-problems that take a very long time to solve.  **Hypothesis**: simplex panics like `lp: bland: all replacements are negative or cause ill-conditioned ab` can be prevented using aggressive problem preprocessing.
 - [ ] Branching procedure may generate new constraints that are superseded by existing ones (e.g. branching on `x1 >= 2 | X <= 1` when there is already an existing constraint stating that `x1 < 1` ). This is wasteful and can be solved by more intelligent branching.

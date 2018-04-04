@@ -1,6 +1,10 @@
 package ilp
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/deckarep/golang-set"
+)
 
 // TODO: see Andersen 1995 for a nice enumeration of simple presolving operations.
 
@@ -55,7 +59,8 @@ presolve:
 	for {
 		preprocessed = prepper.filterFixedVars(preprocessed)
 		preprocessed = prepper.findImplicitlyFixedVars(preprocessed)
-		preprocessed = prepper.removeEmptyConstraints(preprocessed)
+		preprocessed = removeEmptyConstraints(preprocessed)
+		preprocessed = removeDuplicateConstraints(preprocessed)
 
 		if len(prepper.undoers) == previousNUndoers {
 			break presolve
@@ -75,9 +80,7 @@ func (prepper *preProcessor) postSolve(s rawSolution) Solution {
 	postsolved := s
 	// walk the slice from the last to the first element (use it as a LIFO queue)
 	n := len(prepper.undoers)
-	fmt.Printf("applying %v undoers \n", n)
 	for i := n - 1; i >= 0; i-- {
-		fmt.Println("applying undoer ", i)
 		postsolved = prepper.undoers[i](postsolved)
 	}
 
@@ -159,9 +162,7 @@ func (prepper *preProcessor) filterFixedVars(p Problem) Problem {
 	// the additive constant c0 for each variable in the objective function needs to be updated as
 	// c0 := c0 + cjxj,
 	if len(fixedVars) > 0 {
-		fmt.Println("building undoer")
 		undoer := func(s rawSolution) rawSolution {
-			fmt.Println("calling fixed value undoer")
 			// add the fixed values to the raw solution
 			for fixedVar, fvalue := range fixedVars {
 				if _, already := s[fixedVar]; already {
@@ -169,7 +170,6 @@ func (prepper *preProcessor) filterFixedVars(p Problem) Problem {
 				}
 				s[fixedVar] = fvalue
 			}
-			fmt.Println("Applied fixed value undoer")
 			return s
 		}
 
@@ -227,7 +227,7 @@ func (prepper *preProcessor) findImplicitlyFixedVars(p Problem) Problem {
 }
 
 // constraints can turn empty after earlier variable-centric preprocessing operations. These should be removed.
-func (prepper *preProcessor) removeEmptyConstraints(p Problem) Problem {
+func removeEmptyConstraints(p Problem) Problem {
 	var filtered []*Constraint
 	for _, c := range p.constraints {
 		if len(c.expressions) > 0 {
@@ -238,4 +238,58 @@ func (prepper *preProcessor) removeEmptyConstraints(p Problem) Problem {
 	fmt.Printf("removed %v empty constraints\n", len(p.constraints)-len(filtered))
 	p.constraints = filtered
 	return p
+}
+
+// This function may need a rethink if this turns out not to be performant for larger problems.
+func removeDuplicateConstraints(p Problem) Problem {
+
+	// map each set that uniquely identifies each constraint to the Constraint
+	var sets []mapset.Set
+	for _, constraint := range p.constraints {
+
+		// add the variable names of the constraint to a set
+		cSet := mapset.NewSet()
+
+		for _, e := range constraint.expressions {
+			cSet.Add(fmt.Sprintf("%v-%v", e.variable.name, e.coef))
+		}
+
+		sets = append(sets, cSet)
+	}
+
+	// cross-compare each set of variable-coefficient expressions.
+	// if we encounter a duplicate, we throw the one with the highest rhs out.
+	var equalExpressions [][]*Constraint
+	var retained []*Constraint
+	for i, s := range sets {
+		unique := true
+		for j := range sets {
+			if i == j {
+				continue
+			}
+			if sets[j].Equal(s) {
+				equalExpressions = append(equalExpressions, []*Constraint{p.constraints[i], p.constraints[j]})
+				unique = false
+			}
+		}
+		if unique {
+			retained = append(retained, p.constraints[i])
+		}
+	}
+
+	// decide which one of the non-unique pairs to retain
+	// -> pick the one with the smallest RHS, regardless of it being an equality or inequality.
+	for _, pairs := range equalExpressions {
+		if pairs[0].rhs > pairs[1].rhs {
+			retained = append(retained, pairs[1])
+		}
+	}
+
+	fmt.Printf("removed %v (%v) duplicated constraints \n", len(equalExpressions), len(p.constraints)-len(retained))
+
+	// substitute the constraints slice
+	p.constraints = retained
+
+	return p
+
 }

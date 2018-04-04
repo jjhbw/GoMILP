@@ -214,7 +214,7 @@ func (p Problem) toSolveable() *milpProblem {
 	var Gdata []float64
 	for _, constraint := range p.constraints {
 
-		// build the matrix row for the equality
+		// build the matrix row
 		indexRow := make([]float64, len(p.variables))
 
 		for _, exp := range constraint.expressions {
