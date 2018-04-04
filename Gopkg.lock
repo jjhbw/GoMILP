@@ -8,10 +8,10 @@
   version = "v1.1.0"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/lukpank/go-glpk"
-  packages = ["glpk"]
-  revision = "2e64496cbbfa5e6ee79b8fee5ae69e4a848b1425"
+  name = "github.com/deckarep/golang-set"
+  packages = ["."]
+  revision = "1d4478f51bed434f1dadf96dcd9b43aabac66795"
+  version = "v1.7"
 
 [[projects]]
   name = "github.com/pmezard/go-difflib"
@@ -28,12 +28,26 @@
 [[projects]]
   branch = "master"
   name = "gonum.org/v1/gonum"
-  packages = ["blas","blas/blas64","blas/gonum","floats","internal/asm/c128","internal/asm/f32","internal/asm/f64","internal/math32","lapack","lapack/gonum","lapack/lapack64","mat","optimize/convex/lp"]
+  packages = [
+    "blas",
+    "blas/blas64",
+    "blas/gonum",
+    "floats",
+    "internal/asm/c128",
+    "internal/asm/f32",
+    "internal/asm/f64",
+    "internal/math32",
+    "lapack",
+    "lapack/gonum",
+    "lapack/lapack64",
+    "mat",
+    "optimize/convex/lp"
+  ]
   revision = "6477e52b65cacdbb6797b5467473f20a00f70904"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "65d3f55150d25e379d0bb4ec69915aa10b9757f6ffe2351e17e14bd63768b5d4"
+  inputs-digest = "c0da040dd5c8bcd4eec0c32920499acf336512c3aede698066c5ca0d38d2d00c"
   solver-name = "gps-cdcl"
   solver-version = 1
