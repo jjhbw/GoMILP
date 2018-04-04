@@ -3,7 +3,6 @@ package ilp
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/optimize/convex/lp"
@@ -84,11 +83,6 @@ func (p milpProblem) solve(ctx context.Context, workers int, instrumentation Bnb
 
 	initialRelaxation := p.toInitialSubproblem()
 
-	//TODO: REMOVEME
-	fmt.Println(mat.Formatted(initialRelaxation.A))
-	fmt.Println("b:")
-	fmt.Println(initialRelaxation.b)
-
 	// Start the branch and bound procedure for this problem
 	enumTree := newEnumerationTree(initialRelaxation, instrumentation)
 
@@ -113,10 +107,41 @@ func (p milpProblem) solve(ctx context.Context, workers int, instrumentation Bnb
 		return solution{}, incumbent.err
 	}
 
-	// remove the slack variables from the solution vector
+	// remove the slack variables that were introduced by the conversion to standard form from the solution vector
 	postprocessed := *incumbent
 	postprocessed.x = postprocessed.x[:len(p.c)]
 
 	return postprocessed, nil
 
+}
+
+//TODO: COPIED FROM GONUM FOR DEBUGGING: REMOVEME
+// findLinearlyIndependnt finds a set of linearly independent columns of A, and
+// returns the column indexes of the linearly independent columns.
+func findLinearlyIndependent(A mat.Matrix) []int {
+	m, n := A.Dims()
+	idxs := make([]int, 0, m)
+	columns := mat.NewDense(m, m, nil)
+	newCol := make([]float64, m)
+	// Walk in reverse order because slack variables are typically the last columns
+	// of A.
+	for i := n - 1; i >= 0; i-- {
+		if len(idxs) == m {
+			break
+		}
+		mat.Col(newCol, i, A)
+		columns.SetCol(len(idxs), newCol)
+		if len(idxs) == 0 {
+			// A column is linearly independent from the null set.
+			// If all-zero column of A are allowed, this code needs to be adjusted.
+			idxs = append(idxs, i)
+			continue
+		}
+		if mat.Cond(columns.Slice(0, m, 0, len(idxs)+1), 1) > 1e12 {
+			// Not linearly independent.
+			continue
+		}
+		idxs = append(idxs, i)
+	}
+	return idxs
 }

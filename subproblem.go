@@ -2,6 +2,7 @@ package ilp
 
 import (
 	"errors"
+	"fmt"
 	"math"
 
 	"gonum.org/v1/gonum/mat"
@@ -152,13 +153,27 @@ func (p subProblem) solve() solution {
 
 		z, x, err = lp.Simplex(c, A, b, 0, nil)
 
-		// take only the non-slack variables from the result.
+		// take only the variables from the result that are present in the definition of the standard-form root problem.
 		if err == nil && len(x) != len(p.c) {
 			x = x[:len(p.c)]
 		}
 
 	} else {
+		//TODO: REMOVEME
+		fmt.Println("A:")
+		fmt.Println(mat.Formatted(p.A))
+		r, c := p.A.Dims()
+		fmt.Printf("A dims: %v rows and %v cols \n", r, c)
+		fmt.Printf("Linearly independent columns in A: %v out of %v \n", c, len(findLinearlyIndependent(p.A)))
+		fmt.Println("b:")
+		fmt.Println(p.b)
+		fmt.Println("c:")
+		fmt.Println(p.c)
 		z, x, err = lp.Simplex(p.c, p.A, p.b, 0, nil)
+		if err != nil {
+			fmt.Println("PANICED")
+			panic(err)
+		}
 
 	}
 
