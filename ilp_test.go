@@ -31,8 +31,8 @@ func TestMilpProblem_Solve_Smoke_NoInteger(t *testing.T) {
 	got, err := prob.solve(ctx, 1, dummyMiddleware{})
 
 	assert.NoError(t, err)
-	assert.Equal(t, float64(-8), got.solution.z)
-	assert.Equal(t, []float64{2, 3, 0, 0}, got.solution.x)
+	assert.Equal(t, float64(-8), got.z)
+	assert.Equal(t, []float64{2, 3, 0, 0}, got.x)
 }
 
 // A regression test case for a potential infinite recursion in the branch-and-bound procedure.
@@ -51,7 +51,7 @@ func TestMilpProblem_Solve_InfiniteRecursion_Regression(t *testing.T) {
 		integralityConstraints: []bool{true, true, true},
 	}
 
-	want := milpSolution{}
+	want := solution{}
 
 	// initiate the logger instrumentation
 	tl := NewTreeLogger()
@@ -67,7 +67,7 @@ func TestMilpProblem_Solve_InfiniteRecursion_Regression(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, err, context.DeadlineExceeded)
 
-	if !(reflect.DeepEqual(want.solution.x, got.solution.x) && want.solution.z == got.solution.z) {
+	if !(reflect.DeepEqual(want.x, got.x) && want.z == got.z) {
 		t.Log(got)
 		t.Errorf("milpProblem.SolveWithCtx() = %v, want %v", got, want)
 	}
@@ -94,7 +94,7 @@ func TestMilpProblem_Solve_NilReturn_Regression(t *testing.T) {
 		integralityConstraints: []bool{true, false, false, true, false},
 	}
 
-	want := milpSolution{}
+	want := solution{}
 
 	// initiate the logger instrumentation
 	tl := NewTreeLogger()
@@ -110,7 +110,7 @@ func TestMilpProblem_Solve_NilReturn_Regression(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, err, NO_INTEGER_FEASIBLE_SOLUTION)
 
-	if !(reflect.DeepEqual(want.solution.x, got.solution.x) && want.solution.z == got.solution.z) {
+	if !(reflect.DeepEqual(want.x, got.x) && want.z == got.z) {
 		t.Log(got)
 		t.Errorf("milpProblem.SolveWithCtx() = %v, want %v", got, want)
 	}
@@ -136,7 +136,7 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 	tests := []struct {
 		name    string
 		fields  fields
-		want    milpSolution
+		want    solution
 		wantErr error
 	}{
 		{
@@ -152,11 +152,9 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 				h: nil,
 				integralityConstraints: []bool{false, false, false, false},
 			},
-			want: milpSolution{
-				solution: solution{
-					x: []float64{2, 3, 0, 0},
-					z: float64(-8),
-				},
+			want: solution{
+				x: []float64{2, 3, 0, 0},
+				z: float64(-8),
 			},
 		},
 		{
@@ -172,11 +170,9 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 				h: nil,
 				integralityConstraints: []bool{false, false, false, false},
 			},
-			want: milpSolution{
-				solution: solution{
-					x: []float64{2, 3, 0, 0},
-					z: float64(-8),
-				},
+			want: solution{
+				x: []float64{2, 3, 0, 0},
+				z: float64(-8),
 			},
 		},
 		{
@@ -192,11 +188,9 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 				h: nil,
 				integralityConstraints: []bool{false, true, false, false},
 			},
-			want: milpSolution{
-				solution: solution{
-					x: []float64{2.2666666666666666, 2, 1.0666666666666664, 0},
-					z: -6.266666666666667,
-				},
+			want: solution{
+				x: []float64{2.2666666666666666, 2, 1.0666666666666664, 0},
+				z: -6.266666666666667,
 			},
 		},
 		{
@@ -212,11 +206,9 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 				h: nil,
 				integralityConstraints: []bool{false, false, true},
 			},
-			want: milpSolution{
-				solution: solution{
-					x: []float64{2.134831460674157, 2.3595505617977524, 0},
-					z: -6.853932584269662,
-				},
+			want: solution{
+				x: []float64{2.134831460674157, 2.3595505617977524, 0},
+				z: -6.853932584269662,
 			},
 		},
 		{
@@ -232,11 +224,9 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 				h: nil,
 				integralityConstraints: []bool{false, false, true},
 			},
-			want: milpSolution{
-				solution: solution{
-					x: []float64{1.0674157303370786, 2.3595505617977524, 0},
-					z: -5.786516853932583,
-				},
+			want: solution{
+				x: []float64{1.0674157303370786, 2.3595505617977524, 0},
+				z: -5.786516853932583,
 			},
 		},
 		{
@@ -254,11 +244,9 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 				h: []float64{-1},
 				integralityConstraints: []bool{false, false, true},
 			},
-			want: milpSolution{
-				solution: solution{
-					x: []float64{1.0674157303370786, 2.359550561797753, 0},
-					z: -5.786516853932584,
-				},
+			want: solution{
+				x: []float64{1.0674157303370786, 2.359550561797753, 0},
+				z: -5.786516853932584,
 			},
 		},
 		{
@@ -277,7 +265,7 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 				h: []float64{-0.041138108068992485},
 				integralityConstraints: []bool{true, true, true},
 			},
-			want:    milpSolution{},
+			want:    solution{},
 			wantErr: context.DeadlineExceeded,
 		},
 	}
@@ -309,9 +297,9 @@ func TestMilpProblem_SolveMultiple(t *testing.T) {
 				}
 
 				// Note: we compare only the numerical solution variables
-				if !(reflect.DeepEqual(tt.want.solution.x, got.solution.x) && tt.want.solution.z == got.solution.z) {
+				if !(reflect.DeepEqual(tt.want.x, got.x) && tt.want.z == got.z) {
 					t.Log(got)
-					t.Errorf("milpProblem.SolveWithCtx() = %v, want %v %v", got, tt.want.solution.x, tt.want.solution.z)
+					t.Errorf("milpProblem.SolveWithCtx() = %v, want %v %v", got, tt.want.x, tt.want.z)
 				}
 			})
 		}
@@ -340,7 +328,7 @@ func TestRandomized(t *testing.T) {
 }
 
 func testRandomMILP(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.Rand, workers int) {
-	var sol milpSolution
+	var sol solution
 	var err error
 
 	// Try a bunch of random LPs
@@ -371,7 +359,7 @@ func testRandomMILP(t *testing.T, nTest int, pZero float64, maxN int, rnd *rand.
 
 		if err != nil {
 			t.Log(err)
-			t.Log(sol.solution)
+			t.Log(sol)
 		}
 
 	}

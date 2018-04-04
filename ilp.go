@@ -26,10 +26,6 @@ type milpProblem struct {
 	branchingHeuristic BranchHeuristic
 }
 
-type milpSolution struct {
-	solution solution
-}
-
 var (
 	INITIAL_RELAXATION_NOT_FEASIBLE = errors.New("initial relaxation is not feasible")
 	NO_INTEGER_FEASIBLE_SOLUTION    = errors.New("no integer feasible solution found")
@@ -44,9 +40,39 @@ var (
 	}
 )
 
+func (p milpProblem) toInitialSubproblem() subProblem {
+	// convert the inequalities (if any) to equalities
+	cNew := p.c
+	Anew := p.A
+	bNew := p.b
+	intNew := p.integralityConstraints
+
+	if p.G != nil {
+		cNew, Anew, bNew = convertToEqualities(p.c, p.A, p.b, p.G, p.h)
+
+		// add 'false' integrality constraints to the created slack variables
+		intNew = make([]bool, len(cNew))
+		copy(intNew, p.integralityConstraints)
+
+	}
+
+	return subProblem{
+		// the initial subproblem has 0 as identifier
+		id: 0,
+
+		c: cNew,
+		A: Anew,
+		b: bNew,
+		integralityConstraints: intNew,
+
+		// for the initial subproblem, there are no branch-and-bound-specific inequality constraints.
+		bnbConstraints: []bnbConstraint{},
+	}
+}
+
 // Argument workers specifies how many workers should be used for traversing the enumeration tree.
 // This is mainly important from a space complexity point of view, as each worker is a potentially concurrent simplex algorithm.
-func (p milpProblem) solve(ctx context.Context, workers int, instrumentation BnbMiddleware) (milpSolution, error) {
+func (p milpProblem) solve(ctx context.Context, workers int, instrumentation BnbMiddleware) (solution, error) {
 	if workers <= 0 {
 		panic("number of workers may not be lower than zero")
 	}
@@ -55,11 +81,7 @@ func (p milpProblem) solve(ctx context.Context, workers int, instrumentation Bnb
 		panic("integrality constraints vector is not same length as vector c")
 	}
 
-	// preprocess the problem
-	preprocessor := newPreprocessor()
-	prepped := preprocessor.preSolve(p)
-
-	initialRelaxation := prepped.toInitialSubproblem()
+	initialRelaxation := p.toInitialSubproblem()
 
 	// Start the branch and bound procedure for this problem
 	enumTree := newEnumerationTree(initialRelaxation, instrumentation)
@@ -73,25 +95,22 @@ func (p milpProblem) solve(ctx context.Context, workers int, instrumentation Bnb
 		if incumbent != nil {
 			val = *incumbent
 		}
-		return milpSolution{
-			solution: val,
-		}, timedOut
+		return val, timedOut
 	}
 
 	// Check if a nil solution has been returned
 	if incumbent == nil {
-		return milpSolution{}, NO_INTEGER_FEASIBLE_SOLUTION
+		return solution{}, NO_INTEGER_FEASIBLE_SOLUTION
 	}
 
 	if incumbent.err != nil {
-		return milpSolution{}, incumbent.err
+		return solution{}, incumbent.err
 	}
 
-	// undo all presolving operations
-	postsolved := preprocessor.postSolve(*incumbent)
+	// remove the slack variables from the solution vector
+	postprocessed := *incumbent
+	postprocessed.x = postprocessed.x[:len(p.c)]
 
-	return milpSolution{
-		solution: postsolved,
-	}, nil
+	return postprocessed, nil
 
 }

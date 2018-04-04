@@ -3,85 +3,62 @@ package ilp
 import (
 	"reflect"
 	"testing"
-
-	"gonum.org/v1/gonum/mat"
 )
 
-func Test_RemoveEmptyRows(t *testing.T) {
-	type args struct {
-		A *mat.Dense
-		b []float64
-	}
+func Test_preProcessor_filterFixedVars(t *testing.T) {
+
 	tests := []struct {
-		name string
-		args args
-		Anew *mat.Dense
-		bNew []float64
+		name          string
+		getRawProblem func() (Problem, []*Variable)
+		want          Problem
 	}{
 		{
-			name: "no empty rows",
-			args: args{
-				A: mat.NewDense(4, 4, []float64{
-					0, 1, 1, 1,
-					2, 0, 0, 0,
-					3, 0, 0, 0,
-					0, 0, 1, 0,
-				}),
-				b: []float64{1, 2, 3, 4},
+			name: "one fixed var",
+			getRawProblem: func() (Problem, []*Variable) {
+				// return a new problem and the variables that we want removed
+				prob := NewProblem()
+				okayvar := prob.AddVariable("okayvar").LowerBound(1).UpperBound(3)
+
+				okayVars := []*Variable{
+					okayvar,
+				}
+
+				// the offender
+				prob.AddVariable("notokayvar").LowerBound(1).UpperBound(1)
+
+				return prob, okayVars
 			},
-			Anew: mat.NewDense(4, 4, []float64{
-				0, 1, 1, 1,
-				2, 0, 0, 0,
-				3, 0, 0, 0,
-				0, 0, 1, 0,
-			}),
-			bNew: []float64{1, 2, 3, 4},
-		},
-		{
-			name: "one empty row",
-			args: args{
-				A: mat.NewDense(4, 4, []float64{
-					0, 1, 1, 1,
-					0, 0, 0, 0,
-					3, 0, 0, 0,
-					0, 0, 1, 0,
-				}),
-				b: []float64{1, 2, 3, 4},
-			},
-			Anew: mat.NewDense(3, 4, []float64{
-				0, 1, 1, 1,
-				3, 0, 0, 0,
-				0, 0, 1, 0,
-			}),
-			bNew: []float64{1, 3, 4},
-		},
-		{
-			name: "two empty rows",
-			args: args{
-				A: mat.NewDense(4, 4, []float64{
-					0, 1, 1, 1,
-					0, 0, 0, 0,
-					3, 0, 0, 0,
-					0, 0, 0, 0,
-				}),
-				b: []float64{1, 2, 3, 4},
-			},
-			Anew: mat.NewDense(2, 4, []float64{
-				0, 1, 1, 1,
-				3, 0, 0, 0,
-			}),
-			bNew: []float64{1, 3},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotA, gotB := removeEmptyRows(tt.args.A, tt.args.b)
-			if !reflect.DeepEqual(gotA, tt.Anew) {
-				t.Errorf("removeEmptyRows() got = %v, want %v", gotA, tt.Anew)
+			prob, okayvars := tt.getRawProblem()
+			prepper := newPreprocessor()
+
+			preppedProb := prepper.filterFixedVars(prob)
+
+			// check the variables
+			if !reflect.DeepEqual(preppedProb.variables, okayvars) {
+				t.Errorf("Unexpected set of variables returned by fixed variable filter! got: %v, want: %v", preppedProb.variables, okayvars)
 			}
-			if !reflect.DeepEqual(gotB, tt.bNew) {
-				t.Errorf("removeEmptyRows() got1 = %v, want %v", gotB, tt.bNew)
+
+			// check if the removed variables are not accidentally still referenced in the constraints
+			for _, c := range preppedProb.constraints {
+				for _, e := range c.expressions {
+					okay := false
+				check:
+					for _, v := range okayvars {
+						if e.variable == v {
+							okay = true
+							break check
+						}
+					}
+					if !okay {
+						t.Errorf("Variable %v is still present in the constraint expressions!", e)
+					}
+				}
 			}
+
 		})
 	}
 }

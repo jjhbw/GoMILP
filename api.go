@@ -2,7 +2,6 @@ package ilp
 
 import (
 	"context"
-	"fmt"
 	"math"
 
 	"gonum.org/v1/gonum/mat"
@@ -75,6 +74,7 @@ func NewProblem() Problem {
 // add a variable and return a reference to that variable.
 // Defaults to no integrality constraint and an objective function coefficient of 0
 func (p *Problem) AddVariable(name string) *Variable {
+	// TODO: check for uniqueness of variable name as it has an important role downstream
 
 	v := Variable{
 		name:        name,
@@ -187,55 +187,8 @@ func (p *Problem) getVariableIndex(v *Variable) int {
 	panic("variable pointer not found in Problem struct")
 }
 
-// check if the variable is fixed in its bounds
-func isFixed(variable *Variable) bool {
-	if variable.lower == variable.upper {
-		return true
-	}
-	return false
-}
-
-// remove all fixed variables from the problem definition
-func filterFixedVars(p Problem) Problem {
-	filtered := p
-
-	//TODO:, an additive constant in the objective value c0 needs to be updated as
-	// c0 :=co +cjxj,
-	// and the corresponding RHS value needs to be updated as:
-	// bi = bi − aij xj ,
-
-	var newVars []*Variable
-	for _, v := range filtered.variables {
-		if !isFixed(v) {
-			newVars = append(newVars, v)
-		}
-	}
-
-	fmt.Printf("removed %v fixed variables \n", len(newVars)-len(filtered.variables))
-
-	filtered.variables = newVars
-
-	for _, c := range filtered.constraints {
-		var replacementExpressions []expression
-		for _, e := range c.expressions {
-			if isFixed(e.variable) {
-				// update the RHS of the constraint and remove the expression pointing to this variable
-				c.rhs = c.rhs + e.variable.lower
-			} else {
-				replacementExpressions = append(replacementExpressions, e)
-			}
-		}
-		c.expressions = replacementExpressions
-	}
-
-	return filtered
-
-}
-
 // Convert the abstract problem representation to its concrete numerical representation.
-func (prob Problem) toSolveable() *milpProblem {
-
-	p := filterFixedVars(prob)
+func (p Problem) toSolveable() *milpProblem {
 
 	// get the c vector containing the coefficients of the variables in the objective function
 	// simultaneously parse the integrality constraints
@@ -337,37 +290,28 @@ func (prob Problem) toSolveable() *milpProblem {
 
 // SolveWithCtx converts the abstract Problem to a MILPproblem, solves it, and parses its output.
 // Context requires a context.Context as an argument to govern cancellation and solve deadlines.
-func (p *Problem) SolveWithCtx(ctx context.Context) (*Solution, error) {
-	milp := p.toSolveable()
+func (p Problem) SolveWithCtx(ctx context.Context) (*Solution, error) {
 
-	soln, err := milp.solve(ctx, p.workers, p.instrumentation)
+	preprocessor := newPreprocessor()
+	prepped := preprocessor.preSolve(p)
 
+	milp := prepped.toSolveable()
+
+	subSolution, err := milp.solve(ctx, prepped.workers, prepped.instrumentation)
 	if err != nil {
 		return nil, err
 	}
 
-	solution := Solution{
-		Objective: soln.solution.z,
-		byName:    make(map[string]float64),
+	// convert the solution vector to a rawSolution
+	rawSol := make(map[string]float64)
+	for i, v := range prepped.variables {
+		rawSol[v.name] = subSolution.x[i]
 	}
 
-	for i, v := range soln.solution.x {
-		varName := p.variables[i].name
+	// postprocess the solution
+	soln := preprocessor.postSolve(rawSol)
 
-		c := struct {
-			Name string
-			Coef float64
-		}{
-			Name: varName,
-			Coef: v,
-		}
-		solution.Coefficients = append(solution.Coefficients, c)
-
-		solution.byName[varName] = v
-
-	}
-
-	return &solution, nil
+	return &soln, nil
 
 }
 
@@ -377,27 +321,4 @@ func (p *Problem) Solve() (*Solution, error) {
 
 	return p.SolveWithCtx(context.Background())
 
-}
-
-// Solution contains the results of a solved Problem.
-type Solution struct {
-	Objective float64
-
-	// the variables and their optimal values in the order they were orginally specified
-	Coefficients []struct {
-		Name string
-		Coef float64
-	}
-
-	// keyed by name
-	byName map[string]float64
-}
-
-// GetValueFor retrieves the value for a decision variable by its name.
-func (s *Solution) GetValueFor(varName string) (float64, error) {
-	val, ok := s.byName[varName]
-	if !ok {
-		return 0, fmt.Errorf("Variable name %v not found in Solution", varName)
-	}
-	return val, nil
 }
