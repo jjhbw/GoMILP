@@ -43,7 +43,7 @@
     "mat",
     "optimize/convex/lp"
   ]
-  revision = "6477e52b65cacdbb6797b5467473f20a00f70904"
+  revision = "6b03bc22e15aece534f0b4fb96cf6c8f1d885cd0"
 
 [solve-meta]
   analyzer-name = "dep"
