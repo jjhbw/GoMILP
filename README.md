@@ -21,49 +21,37 @@ For testing, solutions to randomized MILPs are compared to solutions produced by
 ### Hurdles
 
 - [ ] Prevent matrix singularity introduced by problem preprocessing 
-  - [x] duplicate rows 
-  - [x] empty rows (all zero)
 - [ ] Problem preprocessing code is still messy and needs some unit tests.
-- [ ] Only the simplest problem preprocessing operations have been implemented.
-- [ ] Problem preprocessing: matrices of e.g. rummikub problems can be greatly simplified by removing redundant constraints.
-- [ ] Debug ostensibly simple rummikub sub-problems that take a very long time to solve.  **Hypothesis**: simplex panics like `lp: bland: all replacements are negative or cause ill-conditioned ab` can be prevented using aggressive problem preprocessing.
-- [ ] Branching procedure may generate new constraints that are superseded by existing ones (e.g. branching on `x1 >= 2 | X <= 1` when there is already an existing constraint stating that `x1 < 1` ). This is wasteful and can be solved by more intelligent branching.
-- [ ] Somehow all rummikub problems in the unit tests of rummiGo have integer-feasible initial relaxations… The resulting solutions do perfectly match the specified test results, though.
+- [ ] All rummikub problems in the unit tests of `rummiGo` have integer-feasible initial relaxations…  Write tests with more complex problems that tax the branch-and-bound procedure
 
 
 ### Enhancements
 
 - [ ] simple presolver operations (see the Huang thesis in references):
-  - [ ] removing infeasible variables
-  - [ ] removing empty rows
-  - [ ] removing empty columns
-  - [x] removing (implicitly) fixed variables
-    - [ ] currently modifies the original problem (through a variable pointer). ugly!
-  - [ ] removing singleton rows
-  - [ ] removing singleton columns
+    - [x] removing empty rows (all zeroes)
+    - [ ] removing empty columns
+    - [x] removing (implicitly) fixed variables
+      - currently modifies the original problem (through a variable pointer), this is ugly!
+  - [x] remove duplicated rows
+    - [ ] substitute singleton rows
+    - [ ] substitute singleton columns
 - [ ] inject a hook to allow instrumentation (logging) of the presolver operations
 - [ ] primal/dual solving
-- [ ] problem preprocessing of non-root nodes in the enumeration tree
+- [ ] problem preprocessing of non-root nodes in the enumeration tree?
 - [ ] variables are currently subject to nonnegativity constraints by default.
 - [ ] Formal testing against [problems with known solutions](http://miplib.zib.de/miplib2010.php)? ([MPS parser](https://github.com/dennisfrancis/mps) needed)
-- [ ] Convert subproblem to standard form in an earlier stage (remove inequality matrix asap). Lots of room for optimization in the `combineInequalities` and `convertToEqualities` functions.
 - [ ] Cancellation currently only possible when bnb procedure has been started. We may want to be able to cancel the solving of the initial relaxation too.
-- [ ] Deal with infeasible subproblems created after branching on a particular integrality-constrained variable of an LP feasible problem. Should this be a noop (currently) or should branching be retried on another integer constrained variable?
+- [ ] Deal with infeasible subproblems created after branching on a particular integrality-constrained variable of a LP feasible problem. Should this be a noop (currently) or should branching be retried on another integer constrained variable?
 - [ ] Enumeration tree exploration queue is currently FIFO. For depth-first exploration, we should go with a LIFO queue.
 - [ ] Add heuristic determining which node gets explored first (as we are using depth-first search) https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html?s_tid=gn_loc_drop#btzwtmv
-- [ ] Maybe make context.Context optional only in the top-level API
-- [ ] Low-level solver cancellation plumbing may be better off governed by our own cancellation hooks instead of the bulky context API. On the other hand, context has a nice set of errors defined on deadline exceeded etc. Replacing it may not be worth it.
 - [ ] how to deal with matrix degeneracy in subproblems? Currently handled the same way as infeasible subproblems.
-- [ ] in branched subproblems: intiate simplex at solution of parent? (using argument of lp.Simplex)
+- [ ] In branched subproblems: is it sensible to intiate the simplex at solution of parent? (using argument of lp.Simplex)
 - [ ] does fiddling with the simplex tolerance value improve outcomes?
 - [ ] Currently implemented only the simplest branching heuristics. Room for improvement such as expensive branching heuristics like node (pseudo-)costs.
-- [ ] Enumeration tree exploration heuristics: use priority queue based on heuristics like total path cost or a best-first approach based on earlier solutions.
-- [ ] also fun: linear program preprocessing (MATLAB docs: https://nl.mathworks.com/help/optim/ug/mixed-integer-linear-programming-algorithms.html#btv20av). This may shave off time and space complexity when applying the Simplex solver on the subproblems.
+- [ ] Enumeration tree exploration heuristics: use priority queue-based on heuristics like total path cost or a best-first approach based on earlier solutions.
 
 
 - [ ] CI procedure should include race detector and test timeouts
-- [ ] sanity checks before converting Problem to a MILPproblem, such as NaN, Inf, and matrix shapes and variable bound domains
-- [ ] testing against GLPK is extremely convoluted due to its shitty API. Moreover, its output is sometimes plain wrong (doesn't properly diagnose unbounded problems).
-- [ ] try to formulate more advanced constraints, like sets of values instead of just integrality? Note that having integer sets as constraints is basically the same as having an integrality constraint, and a <= and >= bound. Branching on this type of constraint can be optimized in a neat way (i.e.) ` x>=0, x<=1, x<=0 ~-> x = 0)`
-- [ ] write benchmarks for time and space usage
+- [ ] sanity checks before converting Problem to a MILPproblem, such as NaN, Inf, and matrix shapes and variable bound domains.
+- [ ] write benchmarks for time (and space?) usage
 - [ ] small(?) performance gains may be made by switching dense matrix datastructures over to sparse ones for bigger problems. This could be facilitated by employing Gonum's mat.Matrix interface.
