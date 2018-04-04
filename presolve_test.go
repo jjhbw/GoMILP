@@ -6,6 +6,7 @@ import (
 )
 
 func Test_preProcessor_filterFixedVars(t *testing.T) {
+	//TODO: test the undoer that facilitates the postsolving step
 
 	tests := []struct {
 		name          string

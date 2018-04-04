@@ -44,7 +44,28 @@ func (prepper *preProcessor) addUndoer(u undoer) {
 
 func (prepper *preProcessor) preSolve(p Problem) Problem {
 
-	preprocessed := prepper.filterFixedVars(p)
+	fmt.Printf("Presolving problem with %v variables and %v constraints\n", len(p.variables), len(p.constraints))
+
+	// remove redundancies caused by the user.
+	preprocessed := sanitizeProblem(p)
+
+	// loop over the prepping operations until no more modifications are performed
+	previousNUndoers := 0
+presolve:
+	for {
+		preprocessed = prepper.filterFixedVars(preprocessed)
+		preprocessed = prepper.findImplicitlyFixedVars(preprocessed)
+		preprocessed = prepper.removeEmptyConstraints(preprocessed)
+
+		if len(prepper.undoers) == previousNUndoers {
+			break presolve
+		}
+		previousNUndoers = len(prepper.undoers)
+	}
+
+	fmt.Println("presolve done")
+
+	fmt.Printf("Presolving reduced problem to %v variables and %v constraints\n", len(preprocessed.variables), len(preprocessed.constraints))
 
 	return preprocessed
 }
@@ -54,9 +75,10 @@ func (prepper *preProcessor) postSolve(s rawSolution) Solution {
 	postsolved := s
 	// walk the slice from the last to the first element (use it as a LIFO queue)
 	n := len(prepper.undoers)
-	for i := n - 1; i == 0; i-- {
-		undo := prepper.undoers[i]
-		postsolved = undo(postsolved)
+	fmt.Printf("applying %v undoers \n", n)
+	for i := n - 1; i >= 0; i-- {
+		fmt.Println("applying undoer ", i)
+		postsolved = prepper.undoers[i](postsolved)
 	}
 
 	solution := Solution{
@@ -72,6 +94,27 @@ func (prepper *preProcessor) postSolve(s rawSolution) Solution {
 	return solution
 }
 
+// remove redundant statements from the problem definition that were introduced by the user.
+// TODO: explicit duplicate constraints
+// TODO: constraints that are superseded by the variable bounds?
+func sanitizeProblem(p Problem) Problem {
+	for _, c := range p.constraints {
+		c.expressions = filterZeroExpressions(c.expressions)
+	}
+
+	return p
+}
+
+func filterZeroExpressions(exprs []expression) []expression {
+	var nonzero []expression
+	for _, e := range exprs {
+		if e.coef != 0 {
+			nonzero = append(nonzero, e)
+		}
+	}
+	return nonzero
+}
+
 // check if the variable is fixed in its bounds
 func isFixed(variable *Variable) bool {
 	if variable.lower == variable.upper {
@@ -81,6 +124,7 @@ func isFixed(variable *Variable) bool {
 }
 
 // remove all fixed variables from the problem definition
+// TODO: try to also find variables that are fixed in the constraint definitions (currently only looking at explicitly defined variable bounds)
 func (prepper *preProcessor) filterFixedVars(p Problem) Problem {
 	filteredProb := p
 
@@ -92,20 +136,18 @@ func (prepper *preProcessor) filterFixedVars(p Problem) Problem {
 		} else {
 			// store the coefficients of the fixed variables in the objective function for injection as a constant during postsolve procedure.
 			fixedVars[v.name] = v.coefficient * v.lower
-
 		}
 	}
 
-	fmt.Printf("removed %v fixed variables \n", len(newVars)-len(filteredProb.variables))
-
+	fmt.Printf("removed %v fixed variables \n", len(filteredProb.variables)-len(newVars))
 	filteredProb.variables = newVars
 
+	// update the RHS of the constraint and remove the expression pointing to this variable:
+	// bi = bi − aij xj ,
 	for _, c := range filteredProb.constraints {
 		var replacementExpressions []expression
 		for _, e := range c.expressions {
 			if isFixed(e.variable) {
-				// update the RHS of the constraint and remove the expression pointing to this variable:
-				// bi = bi − aij xj ,
 				c.rhs = c.rhs - (e.variable.coefficient * e.variable.lower)
 			} else {
 				replacementExpressions = append(replacementExpressions, e)
@@ -116,28 +158,84 @@ func (prepper *preProcessor) filterFixedVars(p Problem) Problem {
 
 	// the additive constant c0 for each variable in the objective function needs to be updated as
 	// c0 := c0 + cjxj,
-	undoer := func(s rawSolution) rawSolution {
-		// add the fixed values to the raw solution
-		for fixedVar, fvalue := range fixedVars {
-			if _, already := s[fixedVar]; already {
-				panic(fmt.Sprintf("variable %s already in raw solution", fixedVar))
+	if len(fixedVars) > 0 {
+		fmt.Println("building undoer")
+		undoer := func(s rawSolution) rawSolution {
+			fmt.Println("calling fixed value undoer")
+			// add the fixed values to the raw solution
+			for fixedVar, fvalue := range fixedVars {
+				if _, already := s[fixedVar]; already {
+					panic(fmt.Sprintf("variable %s already in raw solution", fixedVar))
+				}
+				s[fixedVar] = fvalue
 			}
-			s[fixedVar] = fvalue
+			fmt.Println("Applied fixed value undoer")
+			return s
 		}
-		return s
-	}
 
-	prepper.addUndoer(undoer)
+		prepper.addUndoer(undoer)
+	}
 
 	return filteredProb
 
 }
 
-func sliceSum(x []float64) float64 {
-	total := 0.0
-	for _, valuex := range x {
-		total += valuex
+// all variables that are implicitly fixed due to the shape of a constraint should be set to be explicitly fixed.
+// Note that this could be part of a second pass; setting the implicitly fixed vars to explicitly fixed and then removing them with filterFixedVars.
+// TODO: However, we dont want to modify the original variables (i.e. set their bounds)
+// TODO: a more elegant procedure can be considered. This procedure only considers constraint i with bi = 0 and Sij > 0, making it very limited in its application.
+func (prepper *preProcessor) findImplicitlyFixedVars(p Problem) Problem {
+
+	implicitZero := make(map[*Variable]struct{})
+	for _, c := range p.constraints {
+		removable := false
+		if c.rhs == 0 {
+
+			// check for any negative coefficients
+			nonnegative := true
+		checker:
+			for _, e := range c.expressions {
+				if e.coef < 0 {
+					nonnegative = false
+					break checker
+				}
+			}
+
+			if nonnegative {
+				removable = true
+			}
+		}
+
+		if removable {
+			for _, e := range c.expressions {
+				// be careful not to consider variables in expressions with coef 0 (dummies) as implicit zero.
+				// This is basically a double-check: these expressions should already be removed during Problem sanitation
+				if e.coef > 0 {
+					implicitZero[e.variable] = struct{}{}
+				}
+			}
+		}
 	}
 
-	return total
+	fmt.Printf("found %v variables implicitly fixed at zero \n", len(implicitZero))
+	//TODO: MODIFIES ORIGINAL PROBLEM: REMOVE ME (just a PoC)
+	for v := range implicitZero {
+		v.LowerBound(0).UpperBound(0)
+	}
+
+	return p
+}
+
+// constraints can turn empty after earlier variable-centric preprocessing operations. These should be removed.
+func (prepper *preProcessor) removeEmptyConstraints(p Problem) Problem {
+	var filtered []*Constraint
+	for _, c := range p.constraints {
+		if len(c.expressions) > 0 {
+			filtered = append(filtered, c)
+		}
+	}
+
+	fmt.Printf("removed %v empty constraints\n", len(p.constraints)-len(filtered))
+	p.constraints = filtered
+	return p
 }

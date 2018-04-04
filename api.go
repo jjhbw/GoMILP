@@ -302,7 +302,7 @@ func (p Problem) SolveWithCtx(ctx context.Context) (*Solution, error) {
 		return nil, err
 	}
 
-	// convert the solution vector to a rawSolution
+	// convert the solution vector to a rawSolution by mapping each solution coefficient to the corresponding variable name
 	rawSol := make(map[string]float64)
 	for i, v := range prepped.variables {
 		rawSol[v.name] = subSolution.x[i]
