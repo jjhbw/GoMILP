@@ -1,8 +1,8 @@
 # GoMILP
 
-<u>*A work in progress.*</u>
+<u>*While this project has thought me a lot, I have stopped working on it for now due to it being a significant time sink. It currently only solves very simple MILP problems.*</u>
 
-The scope of this project is to build a simple, reliable MILP solver with an easy to use API in pure Go. Several alternatives ([1](https://github.com/draffensperger/golp),[2](https://github.com/lukpank/go-glpk),[3](https://github.com/costela/golpa)) exist in the form of CGO bindings with older LP solver libraries. While excellent pieces of software, I found their dependence on external libraries a big downside for use cases where maximum portability is key.
+The scope of this project is to build a simple, reliable *Mixed Integer Linear Program* (MILP) solver with an easy to use API in pure Go. Several alternatives ([1](https://github.com/draffensperger/golp),[2](https://github.com/lukpank/go-glpk),[3](https://github.com/costela/golpa)) exist in the form of CGO bindings with older LP solver libraries. While excellent pieces of software, I found their dependence on external libraries a big downside for use cases where maximum portability is key.
 
 This project features an implementation of a ('lazy') branch-and-bound method for solving Mixed Integer Linear Programs. The applied branch and bound procedure is basically a heuristic-guided  search over an enumeration tree that is generated on the fly. In this tree, each node is a particular relaxation of the original problem with additional heuristically determined constraints. To solve each LP relaxation, we use [Gonum's excellent implementation]() of the [Simplex](https://en.wikipedia.org/wiki/Simplex_algorithm) algorithm.
 
@@ -12,7 +12,7 @@ This project features an implementation of a ('lazy') branch-and-bound method fo
 
 Go dependencies are managed using [Go dep](https://github.com/golang/dep). See `Gopkg.lock` and `Gopkg.toml`.
 
-For testing, solutions to randomized MILPs are compared to solutions produced by the GNU Linear Programming Kit, using its [Go bindings](https://github.com/lukpank/go-glpk). To install `libglpk` on macOs, simply run `brew install glpk`.
+For testing, solutions to randomized MILPs are compared to solutions produced by the *GNU Linear Programming Kit*, using its [Go bindings](https://github.com/lukpank/go-glpk). To install `libglpk` on macOs, simply run `brew install glpk`.
 
 
 
@@ -23,19 +23,19 @@ For testing, solutions to randomized MILPs are compared to solutions produced by
 - [ ] Prevent matrix singularity introduced by problem preprocessing 
 - [ ] Problem preprocessing code is still messy and needs some unit tests.
 - [ ] All rummikub problems in the unit tests of `rummiGo` have integer-feasible initial relaxations…  Write tests with more complex problems that tax the branch-and-bound procedure
+- [ ] Lack of a simple presolver precludes tackling larger/more complex problems (see the Huang thesis in references). See `presolver` branch.
+  - [x] removing empty rows (all zeroes)
+  - [ ] removing empty columns
+  - [x] removing (implicitly) fixed variables
+    - currently modifies the original problem (through a variable pointer), this is ugly!
+- [x] remove duplicated rows
+  - [ ] substitute singleton rows
+  - [ ] substitute singleton columns
 
 
 ### Enhancements
 
-- [ ] simple presolver operations (see the Huang thesis in references):
-    - [x] removing empty rows (all zeroes)
-    - [ ] removing empty columns
-    - [x] removing (implicitly) fixed variables
-      - currently modifies the original problem (through a variable pointer), this is ugly!
-  - [x] remove duplicated rows
-    - [ ] substitute singleton rows
-    - [ ] substitute singleton columns
-- [ ] inject a hook to allow instrumentation (logging) of the presolver operations
+- [ ] extend the instrumentation hook to allow instrumentation (logging) of the presolver operations
 - [ ] primal/dual solving
 - [ ] problem preprocessing of non-root nodes in the enumeration tree?
 - [ ] variables are currently subject to nonnegativity constraints by default.
