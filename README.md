@@ -1,10 +1,10 @@
-# Caveat
-<u>*While this project has thought me a lot, I have stopped working on it for now due to it being a significant time sink. Solvers are complex! Who would've thought that? ;)
+# WARNING
+<u>*While this project has taught me a lot, I have stopped working on it for now due to it being a significant time sink. Solvers are complex! Who would've thought? ;)
 In its current state it only solves the most trivial of MILP problems.*</u>
 
 # GoMILP
 
-The scope of this project is to build a simple, reliable *Mixed Integer Linear Program* (MILP) solver with an easy to use API in pure Go. Several alternatives ([1](https://github.com/draffensperger/golp),[2](https://github.com/lukpank/go-glpk),[3](https://github.com/costela/golpa)) exist in the form of CGO bindings with older LP solver libraries. While excellent pieces of software, I found their dependence on external libraries a big downside for use cases where maximum portability is key.
+The scope of this project is to build a simple *Mixed Integer Linear Program* (MILP) solver with an easy to use API in pure Go. Several alternatives ([1](https://github.com/draffensperger/golp),[2](https://github.com/lukpank/go-glpk),[3](https://github.com/costela/golpa)) exist in the form of CGO bindings with older LP solver libraries. While excellent pieces of software, I found their dependence on external libraries a big downside for use cases where maximum portability is key.
 
 This project features an implementation of a ('lazy') branch-and-bound method for solving Mixed Integer Linear Programs. The applied branch and bound procedure is basically a heuristic-guided  search over an enumeration tree that is generated on the fly. In this tree, each node is a particular relaxation of the original problem with additional heuristically determined constraints. To solve each LP relaxation, we use [Gonum's excellent implementation]() of the [Simplex](https://en.wikipedia.org/wiki/Simplex_algorithm) algorithm.
 
